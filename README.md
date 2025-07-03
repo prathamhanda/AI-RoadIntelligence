@@ -32,8 +32,5 @@ python real_time_traffic_analysis_improved.py --webcam
 - Computer Vision & Deep Learning
 - Real-time video processing
 
-## 👨‍💻 Developer
-**Pratham Handa**
-
 ---
 🌟 Star this repository if useful for your traffic management projects!
