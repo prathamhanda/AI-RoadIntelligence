@@ -1,0 +1,14 @@
+# Ignore datasets and outputs
+data/
+weights/
+runs/
+*.avi
+*.mp4
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment files
+*.env
+*.DS_Store
