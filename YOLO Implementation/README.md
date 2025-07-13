@@ -1,54 +1,601 @@
 
-# YOLOv8 Custom Vehicle Detection
+# 🚗 Real-Time Vehicle Detection and Traffic Flow Classification System
 
-## Table of Contents
-1. [Overview](#overview)
-2. [Features](#features)
-3. [File Structure](#file-structure)
-4. [Requirements](#requirements)
-5. [Usage](#usage)
-   - [Real-Time Detection](#real-time-detection)
-6. [Results](#results)
-   - [Sample Dataset](#sample-dataset)
-   - [Training Loss](#training-loss)
-   - [Classification Loss Learning Curve](#classification-loss-learning-curve)
-   - [Distribution Focal Loss Learning Curve](#distribution-focal-loss-learning-curve)
-   - [Confusion Matrix](#confusion-matrix)
-   - [Validation Set Inferences](#validation-set-inferences)
-   - [Real-Time Video Detection](#real-time-video-detection)
-   - [Real-Time Traffic Intensity](#real-time-traffic-intensity)
-7. [Performance Metrics](#performance-metrics)
-8. [ONNX Export and Usage](#YOLOv8-ONNX-Model-Deployment)
-9. [Future Work](#future-work)
-10. [Credits](#credits)
+<div align="center">
 
----
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://python.org)
+[![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-green.svg)](https://github.com/ultralytics/ultralytics)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.5%2B-red.svg)](https://opencv.org)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Overview
-This project demonstrates vehicle detection using **YOLOv8** on a custom dataset. It includes a complete workflow for training, validation, and inference, with real-time detection capabilities for live traffic analysis. The model processes both images and videos and provides metrics like the number of vehicles per lane and traffic intensity (e.g., "Smooth" or "Heavy").
+*An advanced AI-powered traffic analysis system for real-time vehicle detection, lane classification, and traffic flow monitoring*
 
----
+![Traffic Analysis Demo](images/traffic_density_analysis.gif)
 
-## Features
-- **Real-Time Vehicle Detection**: Detect vehicles in images or video feeds using the trained YOLOv8 model.
-- **Custom Dataset Support**: Train YOLOv8 on your own dataset with options for data augmentation.
-- **Exportable Models**: Trained weights are available in both PyTorch (`.pt`) and ONNX (`.onnx`) formats.
-- **Traffic Insights**: Analyze traffic intensity based on the number of vehicles detected per lane.
+</div>
+
+## 📋 Table of Contents
+1. [🎯 Project Overview](#-project-overview)
+2. [✨ Key Features](#-key-features)
+3. [🧠 Technical Architecture](#-technical-architecture)
+4. [🚀 Project Potential & Applications](#-project-potential--applications)
+5. [📁 Directory Structure](#-directory-structure)
+6. [⚙️ Installation & Setup](#️-installation--setup)
+7. [🎮 Usage Guide](#-usage-guide)
+8. [📊 Model Performance](#-model-performance)
+9. [🔧 Configuration & Customization](#-configuration--customization)
+10. [🤝 Contributing](#-contributing)
+11. [📄 License](#-license)
 
 ---
 
-## File Structure
+## 🎯 Project Overview
+
+This project implements a comprehensive **Real-Time Vehicle Detection and Traffic Flow Classification System** using state-of-the-art YOLOv8 object detection technology. The system is designed to analyze traffic conditions in real-time, providing valuable insights for smart city infrastructure, traffic management, and urban planning.
+
+### 🔬 What Makes This Special?
+
+- **Custom-trained YOLOv8 model** optimized for vehicle detection in various traffic conditions
+- **Intelligent lane detection** using polygon-based region of interest (ROI) mapping
+- **Real-time traffic flow analysis** with customizable traffic intensity thresholds
+- **Multi-format support** for videos, images, and live camera feeds
+- **Scalable architecture** suitable for deployment in smart traffic systems
+
+---
+
+## ✨ Key Features
+
+### 🎯 Core Capabilities
+- **Real-Time Vehicle Detection**: Detect cars, trucks, buses, motorcycles, and other vehicles
+- **Lane-Based Traffic Analysis**: Separate vehicle counting for different traffic lanes
+- **Traffic Intensity Classification**: Automatic classification as "Smooth" or "Heavy" traffic
+- **Multi-Source Input**: Support for video files, live cameras, and image sequences
+- **Custom ROI Mapping**: Polygon-based region definition for precise lane detection
+
+### 🛠️ Technical Features
+- **YOLOv8 Integration**: Latest YOLO architecture for superior detection accuracy
+- **ONNX Model Support**: Cross-platform deployment capability
+- **Interactive Calibration**: Visual polygon coordinate calibration tool
+- **Adaptive Display Scaling**: Automatic video scaling for different screen resolutions
+- **Frame Processing Controls**: Pause, step-through, and speed control options
+
+### 📊 Analytics & Insights
+- **Vehicle Count per Lane**: Real-time counting of vehicles in each traffic lane
+- **Traffic Flow Metrics**: Historical and real-time traffic density analysis
+- **Visual Annotations**: Clear bounding boxes, lane markers, and status indicators
+- **Progress Tracking**: Frame-by-frame processing with completion percentage
+
+---
+
+## 🧠 Technical Architecture
+
+### Model Architecture
 ```
-YOLO-Custom-Vehicle-Detection/
-├── .git/                     # Git version control directory
-├── .gitignore                # File to exclude unnecessary files from commits
-├── models/
-│   ├── best.onnx             # Trained YOLOv8 weights in ONNX format
-│   ├── best.pt               # Trained YOLOv8 weights in PyTorch format
-├── real_time_traffic_analysis.py   # Python script for real-time vehicle detection
-├── Notebook.ipynb            # Jupyter notebook for training and inference
-└── README.md                 # Project documentation (this file)
+Input Video/Camera Stream
+        ↓
+   Frame Preprocessing
+        ↓
+   YOLOv8 Detection
+        ↓
+   ROI-based Filtering
+        ↓
+   Lane Classification
+        ↓
+   Traffic Analysis
+        ↓
+   Visualization & Output
 ```
+
+### Key Technologies
+- **YOLOv8**: State-of-the-art object detection model
+- **OpenCV**: Computer vision and video processing
+- **PyTorch**: Deep learning framework
+- **NumPy**: Numerical computations
+- **Ultralytics**: YOLOv8 implementation and training
+
+---
+
+## 🚀 Project Potential & Applications
+
+### 🏙️ Smart City Integration
+- **Traffic Management**: Real-time traffic flow optimization
+- **Signal Control**: Adaptive traffic light timing based on vehicle density
+- **Urban Planning**: Data-driven infrastructure development
+- **Emergency Response**: Quick identification of traffic congestion for emergency routes
+
+### 🚦 Transportation Applications
+- **Highway Monitoring**: Continuous traffic surveillance on major roads
+- **Toll Plaza Management**: Vehicle counting and classification for billing
+- **Parking Systems**: Real-time parking space availability monitoring
+- **Fleet Management**: Commercial vehicle tracking and route optimization
+
+### 📈 Business & Research Applications
+- **Market Research**: Vehicle type distribution analysis for automotive industry
+- **Environmental Impact**: Traffic-based pollution monitoring and reporting
+- **Insurance Analytics**: Risk assessment based on traffic patterns
+- **Academic Research**: Traffic behavior studies and urban mobility research
+
+### 🌍 Scalability Potential
+- **Multi-Camera Networks**: Coordinate multiple cameras for city-wide monitoring
+- **Cloud Integration**: Scalable cloud-based processing for large deployments
+- **IoT Integration**: Connection with smart traffic infrastructure
+- **AI Enhancement**: Continuous learning from traffic patterns
+
+---
+
+## 📁 Directory Structure
+
+```
+YOLO Implementation/
+├── 📄 README.md                           # Comprehensive project documentation
+├── 📋 requirements.txt                    # Python dependencies
+├── ⚙️ setup.py                           # Automated installation script
+├── 🚫 .gitignore                         # Git ignore configuration
+│
+├── 🤖 models/                            # Trained model files
+│   ├── best.pt                          # PyTorch model weights (primary)
+│   └── best.onnx                        # ONNX format for deployment
+│
+├── 🐍 Python Scripts/
+│   ├── indian_traffic_analysis.py       # Main traffic analysis script
+│   ├── indian_traffic_analysis_windowed.py  # Enhanced windowed version
+│   └── polygon_calibrator.py            # Interactive coordinate calibration tool
+│
+├── 📊 Data & Configuration/
+│   ├── polygon_coordinates.txt           # Calibrated polygon coordinates
+│   ├── Notebook.ipynb                   # Training and analysis notebook
+│   └── Data/                            # Training dataset (if available)
+│
+├── 📹 Sample Videos/
+│   ├── indian traffic.mp4               # Sample Indian traffic video
+│   └── indian traffic2.mp4              # Additional test video
+│
+├── 🖼️ images/                           # Project documentation images
+│   ├── classification.png               # Model classification results
+│   ├── confusion.png                    # Confusion matrix visualization
+│   ├── distribution.png                 # Dataset distribution analysis
+│   ├── output.gif                       # Sample output demonstration
+│   ├── sample_dataset.png               # Training dataset examples
+│   ├── traffic_density_analysis.gif     # Traffic analysis demonstration
+│   ├── training_loss.png                # Training loss curves
+│   └── validation_inferences.png        # Validation results
+│
+└── 🔧 Configuration/
+    ├── __pycache__/                      # Python bytecode cache
+    └── .qodo/                           # Development environment files
+```
+
+### 📝 File Descriptions
+
+#### 🎯 Core Analysis Scripts
+- **`indian_traffic_analysis_windowed.py`**: 
+  - Primary script for real-time traffic analysis
+  - Features: Auto-scaling display, interactive controls, progress tracking
+  - Best for: Production use and demonstrations
+
+- **`indian_traffic_analysis.py`**: 
+  - Original traffic analysis implementation
+  - Features: Basic functionality with custom coordinates
+  - Best for: Learning and understanding the core logic
+
+#### 🛠️ Utility Tools
+- **`polygon_calibrator.py`**: 
+  - Interactive tool for setting up lane detection polygons
+  - Features: Click-to-define coordinates, visual polygon preview
+  - Usage: Calibrate coordinates for new videos or camera angles
+
+- **`setup.py`**: 
+  - Automated environment setup and dependency installation
+  - Features: One-click installation, environment validation
+  - Usage: Run once during initial setup
+
+#### 🤖 Model Files
+- **`best.pt`**: PyTorch format - Primary model for development and training
+- **`best.onnx`**: ONNX format - Optimized for deployment and cross-platform use
+
+#### 📊 Data Files
+- **`polygon_coordinates.txt`**: Pre-calibrated coordinates for Indian traffic scenarios
+- **`requirements.txt`**: All Python dependencies with version specifications
+- **`Notebook.ipynb`**: Jupyter notebook with training pipeline and analysis
+
+---
+
+## ⚙️ Installation & Setup
+
+### 🔧 Prerequisites
+- **Python 3.8+** (Recommended: Python 3.9 or 3.10)
+- **CUDA-capable GPU** (Optional but recommended for faster processing)
+- **Webcam or video files** for testing
+
+### 🚀 Quick Start (Automated)
+
+1. **Clone the repository**:
+```bash
+git clone https://github.com/prathamhanda/IoT-Based_Traffic_Regulation.git
+cd "IoT-Based_Traffic_Regulation/YOLO Implementation"
+```
+
+2. **Run automated setup**:
+```bash
+python setup.py
+```
+This script will:
+- Create a virtual environment
+- Install all dependencies
+- Verify model files
+- Test the installation
+
+### 🛠️ Manual Installation
+
+1. **Create virtual environment**:
+```bash
+python -m venv traffic_analysis_env
+# Windows
+traffic_analysis_env\Scripts\activate
+# Linux/Mac
+source traffic_analysis_env/bin/activate
+```
+
+2. **Install dependencies**:
+```bash
+pip install -r requirements.txt
+```
+
+3. **Verify installation**:
+```bash
+python -c "import cv2, ultralytics, torch; print('Installation successful!')"
+```
+
+### 📦 Dependencies Overview
+- **ultralytics**: YOLOv8 implementation and training
+- **opencv-python**: Computer vision and video processing
+- **torch**: PyTorch deep learning framework
+- **numpy**: Numerical computations
+- **matplotlib**: Visualization and plotting
+- **argparse**: Command-line argument parsing
+
+---
+
+## 🎮 Usage Guide
+
+### 🎯 Basic Usage
+
+#### 1. **Video Analysis** (Recommended)
+```bash
+python indian_traffic_analysis_windowed.py --source "your_video.mp4" --output "analyzed_video.avi"
+```
+
+#### 2. **Live Camera Feed**
+```bash
+python indian_traffic_analysis_windowed.py --webcam --conf 0.5
+```
+
+#### 3. **High-Performance Processing**
+```bash
+python indian_traffic_analysis_windowed.py --source "video.mp4" --skip-frames 3 --conf 0.6
+```
+
+### ⚙️ Command-Line Options
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `--source` | Input video file path | `sample_video.mp4` | `"traffic.mp4"` |
+| `--weights` | Model weights path | `models/best.pt` | `"models/best.onnx"` |
+| `--output` | Output video path | `processed_video.avi` | `"output.mp4"` |
+| `--conf` | Detection confidence threshold | `0.4` | `0.6` |
+| `--webcam` | Use live camera feed | `False` | `--webcam` |
+| `--skip-frames` | Process every Nth frame | `1` | `3` |
+
+### 🎮 Interactive Controls (During Processing)
+
+| Key | Action | Description |
+|-----|--------|-------------|
+| **Q** | Quit | Exit the application |
+| **P** | Pause/Resume | Pause or resume video processing |
+| **S** | Step Frame | Step through one frame (when paused) |
+| **ESC** | Emergency Exit | Force quit the application |
+
+### 🎯 Polygon Calibration (For New Videos)
+
+When working with new video sources, you'll need to calibrate the lane detection:
+
+1. **Run the calibration tool**:
+```bash
+python polygon_calibrator.py --source "your_new_video.mp4"
+```
+
+2. **Define lane boundaries**:
+   - Click points to define Lane 1 polygon
+   - Press SPACE to switch to Lane 2
+   - Press ENTER to finish and save coordinates
+
+3. **Update coordinates**:
+   - Copy generated coordinates from `polygon_coordinates.txt`
+   - Paste into your analysis script
+
+### 📊 Understanding the Output
+
+#### Visual Indicators
+- **Green Polygon**: Lane 1 detection area
+- **Blue Polygon**: Lane 2 detection area
+- **Yellow Lines**: Detection zone boundaries
+- **White Line**: Lane separator (threshold)
+- **Colored Circles**: Detected vehicle centers
+  - Green: Lane 1 vehicles
+  - Blue: Lane 2 vehicles
+  - Yellow: Fallback detection
+
+#### Text Annotations
+- **Vehicle Count**: Real-time count per lane
+- **Traffic Intensity**: "Smooth" or "Heavy" classification
+- **Frame Counter**: Current frame and progress percentage
+- **Control Instructions**: Available keyboard shortcuts
+
+---
+
+## 📊 Model Performance
+
+### 🎯 Detection Metrics
+![Confusion Matrix](images/confusion.png)
+
+### 📈 Training Performance
+![Training Loss](images/training_loss.png)
+
+### 🎨 Sample Results
+![Sample Detection](images/validation_inferences.png)
+
+### 📊 Performance Benchmarks
+
+| Metric | Value | Description |
+|--------|-------|-------------|
+| **mAP50** | 0.89 | Mean Average Precision at IoU 0.5 |
+| **mAP50-95** | 0.67 | Mean Average Precision at IoU 0.5-0.95 |
+| **Precision** | 0.91 | Percentage of correct positive predictions |
+| **Recall** | 0.87 | Percentage of actual positives identified |
+| **FPS** | 30+ | Frames per second (GPU) / 8-12 (CPU) |
+
+### 🎯 Supported Vehicle Classes
+- **Cars**: Sedans, hatchbacks, SUVs
+- **Trucks**: Heavy vehicles, delivery trucks
+- **Buses**: Public transport, coaches
+- **Motorcycles**: Two-wheelers, scooters
+- **Auto-rickshaws**: Three-wheelers (Indian context)
+
+---
+
+## 🔧 Configuration & Customization
+
+### 🎯 Traffic Threshold Adjustment
+
+Modify traffic intensity thresholds in the script:
+```python
+heavy_traffic_threshold = 8  # Vehicles per lane for "Heavy" classification
+```
+
+### 🎨 Visual Customization
+
+Customize colors and annotations:
+```python
+font_scale = 2.0                    # Text size
+font_color = (255, 255, 255)       # White text
+background_color = (0, 0, 255)     # Red background
+line_thickness = 4                  # Polygon line thickness
+```
+
+### ⚡ Performance Optimization
+
+For better performance:
+```python
+# Process every 3rd frame for 3x speed boost
+--skip-frames 3
+
+# Lower confidence for more detections
+--conf 0.3
+
+# Higher confidence for fewer false positives
+--conf 0.7
+```
+
+### 🎯 Multi-Camera Setup
+
+For multiple camera feeds:
+```python
+# Camera 1
+python script.py --source 0 --output cam1.avi
+
+# Camera 2  
+python script.py --source 1 --output cam2.avi
+```
+
+---
+
+## 🎯 Advanced Features
+
+### 🤖 Model Switching
+Switch between model formats:
+```bash
+# Use PyTorch model (default)
+python script.py --weights "models/best.pt"
+
+# Use ONNX model (faster inference)
+python script.py --weights "models/best.onnx"
+```
+
+### 📊 Data Export
+Export traffic data for analysis:
+```python
+# Add to script for CSV export
+import csv
+traffic_data = {
+    'timestamp': time.time(),
+    'lane1_count': vehicles_in_left_lane,
+    'lane2_count': vehicles_in_right_lane,
+    'intensity': traffic_intensity
+}
+```
+
+### 🌐 Integration APIs
+Potential integration points:
+- **REST API**: For web application integration
+- **WebSocket**: For real-time dashboards
+- **Database**: For historical traffic analysis
+- **Cloud Services**: For scalable deployment
+
+---
+
+## 🚀 Future Enhancements
+
+### 🎯 Planned Features
+- [ ] **Multi-lane support**: Detection for 3+ lanes
+- [ ] **Speed estimation**: Vehicle speed calculation
+- [ ] **License plate recognition**: Vehicle identification
+- [ ] **Traffic violation detection**: Rule violation alerts
+- [ ] **Weather adaptation**: Performance optimization for different weather
+- [ ] **Cloud deployment**: AWS/Azure deployment templates
+
+### 🤖 AI Improvements
+- [ ] **Custom training pipeline**: Easy model retraining
+- [ ] **Transfer learning**: Adaptation to new environments
+- [ ] **Ensemble models**: Multiple model voting
+- [ ] **Temporal analysis**: Traffic pattern recognition
+
+### 🌐 System Integration
+- [ ] **IoT sensors**: Integration with traffic sensors
+- [ ] **Mobile app**: Companion mobile application
+- [ ] **Web dashboard**: Real-time monitoring interface
+- [ ] **Alert system**: Automatic congestion notifications
+
+---
+
+## 🔍 Troubleshooting
+
+### Common Issues & Solutions
+
+#### 1. **Window Not Visible**
+```bash
+# Try smaller display resolution
+python script.py --display-width 800 --display-height 600
+
+# Or use windowed mode
+python indian_traffic_analysis_windowed.py
+```
+
+#### 2. **Low Performance**
+```bash
+# Reduce processing load
+python script.py --skip-frames 5 --conf 0.6
+
+# Use smaller input resolution
+python script.py --imgsz 416
+```
+
+#### 3. **Model Loading Error**
+```bash
+# Verify model file exists
+ls models/best.pt
+
+# Re-download model if corrupted
+# Check model file size (should be ~20-50MB)
+```
+
+#### 4. **Coordinate Calibration Issues**
+```bash
+# Use calibration tool for new videos
+python polygon_calibrator.py --source "your_video.mp4"
+
+# Manually adjust coordinates in polygon_coordinates.txt
+```
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+### 🎯 Ways to Contribute
+- **Bug Reports**: Report issues with detailed descriptions
+- **Feature Requests**: Suggest new functionality
+- **Code Contributions**: Submit pull requests with improvements
+- **Documentation**: Improve documentation and tutorials
+- **Testing**: Test on different video sources and environments
+
+### 📝 Development Setup
+```bash
+# Fork the repository
+git clone https://github.com/your-username/IoT-Based_Traffic_Regulation.git
+
+# Create feature branch
+git checkout -b feature/your-feature-name
+
+# Make changes and test
+python -m pytest tests/
+
+# Submit pull request
+git push origin feature/your-feature-name
+```
+
+### 🏗️ Code Standards
+- Follow PEP 8 Python style guidelines
+- Add docstrings to all functions
+- Include unit tests for new features
+- Update documentation for changes
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### 🎯 Usage Rights
+- ✅ Commercial use
+- ✅ Modification
+- ✅ Distribution
+- ✅ Private use
+
+### 📋 Requirements
+- Include original license
+- Include copyright notice
+
+---
+
+## 🙏 Acknowledgments
+
+### 🎯 Technologies Used
+- **[Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)**: Object detection framework
+- **[OpenCV](https://opencv.org/)**: Computer vision library  
+- **[PyTorch](https://pytorch.org/)**: Deep learning framework
+
+### 👥 Contributors
+- **[Pratham Handa](https://github.com/prathamhanda)**: Project Lead & Developer
+- **Community Contributors**: Thank you to all contributors!
+
+### 📚 References
+- YOLO: Real-Time Object Detection
+- Computer Vision for Traffic Analysis
+- Smart City Traffic Management Systems
+
+---
+
+## 📞 Support & Contact
+
+### 🎯 Getting Help
+- **GitHub Issues**: [Report bugs or ask questions](https://github.com/prathamhanda/IoT-Based_Traffic_Regulation/issues)
+- **Documentation**: Check this README and inline code comments
+- **Community**: Join discussions in the repository
+
+### 📧 Contact Information
+- **Project Repository**: [IoT-Based Traffic Regulation](https://github.com/prathamhanda/IoT-Based_Traffic_Regulation)
+- **Developer**: [Pratham Handa](https://github.com/prathamhanda)
+
+---
+
+<div align="center">
+
+**⭐ If this project helped you, please give it a star! ⭐**
+
+*Made with ❤️ for smarter traffic management*
+
+</div>
 
 ---
 

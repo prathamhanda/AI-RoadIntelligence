@@ -1,0 +1,7 @@
+# Generated polygon coordinates for Indian traffic video
+# Copy these to your traffic analysis script
+
+vertices1 = np.array([(2408, 733), (3810, 1920), (2222, 2130), (2052, 744), (2402, 735)], dtype=np.int32)
+vertices2 = np.array([(2020, 752), (1948, 2138), (165, 2135), (1702, 760), (2018, 752)], dtype=np.int32)
+lane_threshold = 2074
+x1, x2 = 683, 2160  # Detection area
