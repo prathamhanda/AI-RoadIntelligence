@@ -27,6 +27,10 @@ from ultralytics import YOLO
 import json
 from datetime import datetime
 
+# Import our custom modules
+from config import config
+from violence_detector import create_violence_detector, create_alert_manager
+
 class YouTubeStreamManager:
     """Enhanced YouTube stream handling with automatic reconnection"""
     
@@ -322,11 +326,11 @@ class StreamCalibrator:
             print(f"⚠️  Could not save configuration: {e}")
 
 class TrafficAnalyzer:
-    """Main traffic analysis processor"""
+    """Main traffic analysis processor with integrated violence detection"""
     
-    def __init__(self, model, config, headless=False):
+    def __init__(self, model, lane_config, headless=False):
         self.model = model
-        self.config = config
+        self.lane_config = lane_config
         self.headless = headless
         self.frame_queue = Queue(maxsize=5)
         self.result_queue = Queue(maxsize=5)
@@ -337,12 +341,32 @@ class TrafficAnalyzer:
             'analysis_start': time.time()
         }
         
+        # Initialize violence detection
+        self.violence_detector = create_violence_detector(config)
+        self.alert_manager = create_alert_manager(config)
+        self.current_violence_alert = None
+        self.alert_display_time = 0
+        self.alert_duration = 5.0  # seconds
+        
+        if self.violence_detector:
+            self.violence_detector.start_processing()
+            print("[SHIELD] Violence detection enabled and started")
+        else:
+            print("[WARNING] Violence detection disabled")
+        
     def analyze_frame(self, frame):
-        """Analyze single frame for vehicle detection"""
+        """Analyze single frame for vehicle detection and violence detection"""
         self.stats['total_frames'] += 1
         
+        # Queue frame for violence detection (async)
+        if self.violence_detector:
+            self.violence_detector.queue_frame(frame)
+        
+        # Process any pending violence detection results
+        self._process_violence_results()
+        
         detection_frame = frame.copy()
-        x1, x2 = self.config['detection_area']
+        x1, x2 = self.lane_config['detection_area']
         
         # Mask non-detection areas
         detection_frame[:x1, :] = 0
@@ -360,7 +384,7 @@ class TrafficAnalyzer:
             processed_frame = frame.copy()
         
         # Draw lane polygons
-        for i, poly in enumerate(self.config['polygons']):
+        for i, poly in enumerate(self.lane_config['polygons']):
             pts = np.array(poly, dtype=np.int32)
             color = (0, 255, 0) if i % 2 == 0 else (255, 0, 0)
             cv2.polylines(processed_frame, [pts], True, color, 2)
@@ -368,7 +392,7 @@ class TrafficAnalyzer:
         # Count vehicles in each lane
         vehicles_left = 0
         vehicles_right = 0
-        lane_threshold = self.config['lane_threshold']
+        lane_threshold = self.lane_config['lane_threshold']
         
         if results[0].boxes is not None:
             total_vehicles = len(results[0].boxes)
@@ -383,10 +407,16 @@ class TrafficAnalyzer:
         # Add traffic analysis annotations
         self.add_annotations(processed_frame, vehicles_left, vehicles_right)
         
+        # Add violence detection overlay if active alert
+        if self.current_violence_alert and not self.headless:
+            processed_frame = self.violence_detector.create_alert_overlay(
+                processed_frame, self.current_violence_alert
+            )
+        
         return processed_frame, vehicles_left, vehicles_right
     
     def add_annotations(self, frame, vehicles_left, vehicles_right):
-        """Add traffic analysis overlays"""
+        """Add traffic analysis overlays including violence detection status"""
         heavy_threshold = 8
         
         # Traffic intensity
@@ -416,19 +446,82 @@ class TrafficAnalyzer:
                    cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, (255, 255, 255), 2)
         cv2.putText(frame, f'Status: {intensity_right}', (right_x + 10, 70), 
                    cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, (255, 255, 255), 2)
+        
+        # Violence detection status box (bottom left)
+        if self.violence_detector and self.violence_detector.enabled:
+            status_box_width = int(frame_width * 0.2)
+            status_box_height = 60
+            status_y = frame_height - status_box_height - 20
+            
+            # Get violence detection statistics
+            violence_stats = self.violence_detector.get_statistics()
+            unack_alerts = self.alert_manager.get_unacknowledged_count()
+            
+            # Status color based on recent alerts
+            status_color = (0, 255, 0) if unack_alerts == 0 else (0, 165, 255)  # Green or Orange
+            if self.current_violence_alert:
+                status_color = (0, 0, 255)  # Red for active alert
+            
+            cv2.rectangle(frame, (20, status_y), (20 + status_box_width, status_y + status_box_height), 
+                         status_color, -1)
+            cv2.putText(frame, '🛡️ Violence Monitor', (25, status_y + 25), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (255, 255, 255), 2)
+            
+            if unack_alerts > 0:
+                cv2.putText(frame, f'Alerts: {unack_alerts}', (25, status_y + 50), 
+                           cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (255, 255, 255), 2)
+            else:
+                cv2.putText(frame, 'Status: OK', (25, status_y + 50), 
+                           cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (255, 255, 255), 2)
     
     def get_statistics(self):
-        """Get analysis statistics"""
+        """Get comprehensive analysis statistics including violence detection"""
         elapsed = time.time() - self.stats['analysis_start']
         fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
         
-        return {
+        base_stats = {
             'total_frames': self.stats['total_frames'],
             'vehicles_detected': self.stats['vehicles_detected'],
             'elapsed_time': elapsed,
             'fps': fps,
             'vehicles_per_frame': self.stats['vehicles_detected'] / max(1, self.stats['total_frames'])
         }
+        
+        # Add violence detection statistics if available
+        if self.violence_detector:
+            violence_stats = self.violence_detector.get_statistics()
+            base_stats['violence_detection'] = violence_stats
+            base_stats['unacknowledged_alerts'] = self.alert_manager.get_unacknowledged_count()
+        
+        return base_stats
+    
+    def cleanup(self):
+        """Cleanup resources including violence detector"""
+        if self.violence_detector:
+            self.violence_detector.stop_processing()
+            print("[SHIELD] Violence detection stopped")
+    
+    def _process_violence_results(self):
+        """Process pending violence detection results"""
+        if not self.violence_detector:
+            return
+        
+        # Check for new detection results
+        detection = self.violence_detector.get_latest_detection()
+        if detection:
+            # Create alert
+            self.alert_manager.process_detection(detection)
+            
+            # Set current alert for display
+            self.current_violence_alert = detection
+            self.alert_display_time = time.time()
+            
+            print(f"[ALERT] VIOLENCE DETECTED: {detection['max_confidence']:.2f} confidence")
+        
+        # Clear alert after duration
+        if (self.current_violence_alert and 
+            time.time() - self.alert_display_time > self.alert_duration):
+            self.current_violence_alert = None
 
 def initialize_video_source(source):
     """Initialize video source with proper handling for different types"""
@@ -529,9 +622,42 @@ def load_saved_config():
         print("⚠️  No saved configuration found, using default")
         return load_default_config()
 
+def reset_video_source(cap, source):
+    """Reset video source to beginning after calibration"""
+    print("🔄 Resetting video to beginning for traffic analysis...")
+    
+    if isinstance(cap, YouTubeStreamManager):
+        # For YouTube streams, force a fresh connection to get latest stream
+        print("   YouTube stream - getting fresh connection...")
+        cap.current_stream_url = None  # Force URL refresh
+        cap.last_refresh = 0  # Force refresh
+        if cap.connect():
+            print("   ✅ YouTube stream refreshed successfully")
+        else:
+            print("   ⚠️ YouTube stream refresh failed, continuing with current connection")
+        return cap
+    else:
+        # For file sources, set position to beginning
+        if isinstance(source, str) and not source.startswith(('http://', 'https://', 'rtsp://')):
+            # It's a file, reset to beginning
+            try:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                # Verify reset worked by checking position
+                current_pos = cap.get(cv2.CAP_PROP_POS_FRAMES)
+                if current_pos == 0:
+                    print("   ✅ Video file reset to beginning")
+                else:
+                    print(f"   ⚠️ Video reset attempted, position: {current_pos}")
+            except Exception as e:
+                print(f"   ⚠️ Could not reset video position: {e}")
+        else:
+            # It's a live stream/camera, can't reset
+            print("   Live stream - continuing from current position")
+        return cap
+
 def main():
     """Main function"""
-    parser = argparse.ArgumentParser(description='Real-time Vehicle Detection and Traffic Analysis')
+    parser = argparse.ArgumentParser(description='Real-time Vehicle Detection and Traffic Analysis with Violence Detection')
     parser.add_argument('--source', type=str, default=None, 
                        help='Video source (file, webcam, URL, YouTube)')
     parser.add_argument('--weights', type=str, default='models/best.pt', 
@@ -546,10 +672,50 @@ def main():
                        help='Maximum frames to process (for testing)')
     parser.add_argument('--output', type=str, default=None, 
                        help='Save processed video to file')
+    parser.add_argument('--violence-api-user', type=str, 
+                       help='Sightengine API user ID for violence detection')
+    parser.add_argument('--violence-api-secret', type=str, 
+                       help='Sightengine API secret for violence detection')
+    parser.add_argument('--disable-violence', action='store_true', 
+                       help='Disable violence detection even if API credentials are available')
+    parser.add_argument('--violence-threshold', type=float, default=0.7, 
+                       help='Violence detection threshold (0.0-1.0)')
+    parser.add_argument('--violence-interval', type=int, default=30, 
+                       help='Check every N frames for violence detection')
     
     args = parser.parse_args()
     
+    # Configure violence detection from command line arguments
+    if args.violence_api_user:
+        config.SIGHTENGINE_API_USER = args.violence_api_user
+    if args.violence_api_secret:
+        config.SIGHTENGINE_API_SECRET = args.violence_api_secret
+    if args.disable_violence:
+        config.VIOLENCE_DETECTION_ENABLED = False
+    if args.violence_threshold:
+        config.VIOLENCE_THRESHOLD = args.violence_threshold
+    if args.violence_interval:
+        config.VIOLENCE_CHECK_INTERVAL = args.violence_interval
+    
+    # Reload API credentials after potential updates
+    config.load_api_credentials()
+    
     print("🚗 Real-Time Vehicle Detection and Traffic Analysis")
+    print("[SHIELD] With Advanced Violence Detection")
+    print("=" * 60)
+    
+    # Show violence detection status
+    if config.VIOLENCE_DETECTION_ENABLED:
+        print("✅ Violence detection: ENABLED")
+        print(f"   Threshold: {config.VIOLENCE_THRESHOLD}")
+        print(f"   Check interval: {config.VIOLENCE_CHECK_INTERVAL} frames")
+        print(f"   Models: {', '.join(config.VIOLENCE_MODELS)}")
+    else:
+        print("[WARNING] Violence detection: DISABLED")
+        if not config.SIGHTENGINE_API_USER or not config.SIGHTENGINE_API_SECRET:
+            print("   Reason: Missing API credentials")
+        else:
+            print("   Reason: Explicitly disabled")
     print("=" * 60)
     
     # Check model file
@@ -593,33 +759,54 @@ def main():
     
     print(f"📐 Frame size: {sample_frame.shape[1]}x{sample_frame.shape[0]}")
     
+    # Reset video to beginning after sample frame read (for file sources)
+    if not isinstance(cap, YouTubeStreamManager) and isinstance(source, str) and not source.startswith(('http://', 'https://', 'rtsp://')):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        print("🔄 Video reset to beginning after sample frame read")
+    
     # Configure lanes
     if args.no_calibration:
         print("\n🎯 Using saved/default lane configuration")
-        config = load_saved_config()
+        lane_config = load_saved_config()
     else:
         if args.headless:
             print("\n🎯 Headless mode: using saved/default configuration")
-            config = load_saved_config()
+            lane_config = load_saved_config()
         else:
             print("\n🎯 Starting interactive calibration...")
-            calibrator = StreamCalibrator(cap if not isinstance(cap, YouTubeStreamManager) else 
-                                        cv2.VideoCapture(source))
-            config = calibrator.calibrate_stream()
+            # For YouTube streams, create a separate capture for calibration to avoid consuming the main stream
+            if isinstance(cap, YouTubeStreamManager):
+                print("   Creating separate connection for calibration...")
+                calibration_cap = cv2.VideoCapture(source)
+                if not calibration_cap.isOpened():
+                    print("   ⚠️ Could not create calibration connection, using main stream")
+                    calibration_cap = cap
+            else:
+                calibration_cap = cap
             
-            if config is None:
+            calibrator = StreamCalibrator(calibration_cap)
+            lane_config = calibrator.calibrate_stream()
+            
+            # Clean up separate calibration capture if it was created
+            if isinstance(cap, YouTubeStreamManager) and calibration_cap != cap:
+                calibration_cap.release()
+            
+            if lane_config is None:
                 print("Calibration cancelled")
                 if hasattr(cap, 'release'):
                     cap.release()
                 return
+            
+            # Reset video source to beginning after calibration
+            cap = reset_video_source(cap, source)
     
     print(f"\n✅ Configuration loaded:")
-    print(f"   Polygons: {len(config['polygons'])}")
-    print(f"   Lane threshold: {config['lane_threshold']}")
-    print(f"   Detection area: {config['detection_area']}")
+    print(f"   Polygons: {len(lane_config['polygons'])}")
+    print(f"   Lane threshold: {lane_config['lane_threshold']}")
+    print(f"   Detection area: {lane_config['detection_area']}")
     
     # Initialize traffic analyzer
-    analyzer = TrafficAnalyzer(model, config, headless=args.headless)
+    analyzer = TrafficAnalyzer(model, lane_config, headless=args.headless)
     
     # Setup video output if requested
     out_writer = None
@@ -637,7 +824,7 @@ def main():
         cv2.resizeWindow(window_name, 1200, 675)
         cv2.moveWindow(window_name, 50, 50)
     
-    print(f"\n🚀 Starting traffic analysis...")
+    print(f"\n[ROCKET] Starting traffic analysis...")
     print(f"Mode: {'Headless' if args.headless else 'GUI'}")
     if not args.headless:
         print("Controls: 'q' to quit, 's' to save frame, 'p' to pause")
@@ -724,6 +911,8 @@ def main():
     
     finally:
         # Cleanup
+        analyzer.cleanup()  # This will stop violence detection
+        
         if hasattr(cap, 'release'):
             cap.release()
         if out_writer:
@@ -739,6 +928,18 @@ def main():
         print(f"   Average FPS: {stats['fps']:.2f}")
         print(f"   Vehicles per frame: {stats['vehicles_per_frame']:.2f}")
         print(f"   Analysis duration: {stats['elapsed_time']:.2f} seconds")
+        
+        # Print violence detection statistics if available
+        if 'violence_detection' in stats and stats['violence_detection']['enabled']:
+            vio_stats = stats['violence_detection']
+            print(f"\n[SHIELD] Violence Detection Statistics:")
+            print(f"   Total checks: {vio_stats['total_checks']}")
+            print(f"   Violence detected: {vio_stats['violence_detected']}")
+            print(f"   Detection rate: {vio_stats['detection_rate']:.2%}")
+            print(f"   API errors: {vio_stats['api_errors']}")
+            print(f"   Avg processing time: {vio_stats['avg_processing_time']:.3f}s")
+            if stats['unacknowledged_alerts'] > 0:
+                print(f"   ⚠️  Unacknowledged alerts: {stats['unacknowledged_alerts']}")
         
         print(f"\n✅ Traffic analysis completed!")
 

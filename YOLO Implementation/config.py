@@ -11,6 +11,7 @@ import os
 import json
 from datetime import datetime
 from typing import Dict, List, Tuple, Any
+import sys
 
 class Config:
     """Main configuration class for traffic analysis system"""
@@ -47,6 +48,17 @@ class Config:
         self.HEAVY_TRAFFIC_THRESHOLD = 8
         self.VEHICLE_CLASSES = [2, 3, 5, 7]  # car, motorcycle, bus, truck
         self.LANE_COLORS = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0)]
+        
+        # Violence Detection API settings
+        self.VIOLENCE_DETECTION_ENABLED = False
+        self.SIGHTENGINE_API_USER = ""  # Set via environment or config file
+        self.SIGHTENGINE_API_SECRET = ""  # Set via environment or config file
+        self.VIOLENCE_CHECK_INTERVAL = 30  # Check every 30 frames
+        self.VIOLENCE_MODELS = ["violence", "gore", "weapon"]  # Models to apply
+        self.VIOLENCE_THRESHOLD = 0.7  # Threshold for violence detection
+        self.VIOLENCE_ALERT_ENABLED = True
+        self.VIOLENCE_LOG_ENABLED = True
+        self.VIOLENCE_SAVE_EVIDENCE = True  # Save frames with violence detection
         
         # Output settings
         self.OUTPUT_CODEC = 'XVID'
@@ -85,6 +97,9 @@ class Config:
         
         # Load user configuration if exists
         self.load_user_config()
+        
+        # Load API credentials from environment
+        self.load_api_credentials()
     
     def load_user_config(self, config_file: str = "config.json"):
         """Load user configuration from file"""
@@ -102,6 +117,20 @@ class Config:
             except Exception as e:
                 print(f"⚠️  Could not load user config: {e}")
     
+    def load_api_credentials(self):
+        """Load API credentials from environment variables or config"""
+        # Try to load from environment variables first
+        self.SIGHTENGINE_API_USER = os.getenv('SIGHTENGINE_API_USER', self.SIGHTENGINE_API_USER)
+        self.SIGHTENGINE_API_SECRET = os.getenv('SIGHTENGINE_API_SECRET', self.SIGHTENGINE_API_SECRET)
+        
+        # Enable violence detection only if credentials are available
+        if self.SIGHTENGINE_API_USER and self.SIGHTENGINE_API_SECRET:
+            self.VIOLENCE_DETECTION_ENABLED = True
+            print("✅ Violence detection API credentials loaded")
+        else:
+            self.VIOLENCE_DETECTION_ENABLED = False
+            print("⚠️  Violence detection disabled - API credentials not found")
+    
     def save_user_config(self, config_file: str = "config.json"):
         """Save current configuration to file"""
         try:
@@ -114,7 +143,13 @@ class Config:
                 'HEAVY_TRAFFIC_THRESHOLD': self.HEAVY_TRAFFIC_THRESHOLD,
                 'DISPLAY_WIDTH': self.DISPLAY_WIDTH,
                 'DISPLAY_HEIGHT': self.DISPLAY_HEIGHT,
-                'YOUTUBE_REFRESH_INTERVAL': self.YOUTUBE_REFRESH_INTERVAL
+                'YOUTUBE_REFRESH_INTERVAL': self.YOUTUBE_REFRESH_INTERVAL,
+                'VIOLENCE_CHECK_INTERVAL': self.VIOLENCE_CHECK_INTERVAL,
+                'VIOLENCE_MODELS': self.VIOLENCE_MODELS,
+                'VIOLENCE_THRESHOLD': self.VIOLENCE_THRESHOLD,
+                'VIOLENCE_ALERT_ENABLED': self.VIOLENCE_ALERT_ENABLED,
+                'VIOLENCE_LOG_ENABLED': self.VIOLENCE_LOG_ENABLED,
+                'VIOLENCE_SAVE_EVIDENCE': self.VIOLENCE_SAVE_EVIDENCE
             }
             
             with open(config_file, 'w') as f:
@@ -243,6 +278,15 @@ class Config:
         print(f"🚗 Heavy traffic threshold: {self.HEAVY_TRAFFIC_THRESHOLD}")
         print(f"   Vehicle classes: {self.VEHICLE_CLASSES}")
         
+        # Violence detection settings
+        print(f"🛡️ Violence detection enabled: {self.VIOLENCE_DETECTION_ENABLED}")
+        if self.VIOLENCE_DETECTION_ENABLED:
+            print(f"   API User: {self.SIGHTENGINE_API_USER}")
+            print(f"   API Secret: {'*' * len(self.SIGHTENGINE_API_SECRET)}")
+            print(f"   Check interval: {self.VIOLENCE_CHECK_INTERVAL} frames")
+            print(f"   Models: {self.VIOLENCE_MODELS}")
+            print(f"   Threshold: {self.VIOLENCE_THRESHOLD}")
+        
         print("=" * 50)
 
 # Global configuration instance
@@ -338,12 +382,116 @@ def validate_config() -> bool:
     print(f"{'✅ Configuration valid' if valid else '❌ Configuration has issues'}")
     return valid
 
+# System validation functions (merged from system_tools.py)
+def check_system_requirements() -> bool:
+    """Comprehensive system requirements check"""
+    print("🔍 System Requirements Check")
+    print("=" * 50)
+    
+    requirements_met = True
+    
+    # Python version
+    python_version = sys.version_info
+    print(f"🐍 Python: {python_version.major}.{python_version.minor}.{python_version.micro}")
+    if python_version < (3, 8):
+        print("   ❌ Python 3.8+ required")
+        requirements_met = False
+    else:
+        print("   ✅ Python version OK")
+    
+    # OpenCV
+    try:
+        import cv2
+        print(f"📹 OpenCV: {cv2.__version__}")
+        
+        # Check GUI support
+        try:
+            cv2.namedWindow("test", cv2.WINDOW_NORMAL)
+            cv2.destroyWindow("test")
+            print("   ✅ GUI support available")
+        except:
+            print("   ⚠️  No GUI support (headless mode only)")
+        
+        # Check video codecs
+        backends = []
+        if hasattr(cv2, 'CAP_FFMPEG'):
+            backends.append("FFMPEG")
+        if hasattr(cv2, 'CAP_GSTREAMER'):
+            backends.append("GStreamer")
+        print(f"   📺 Video backends: {', '.join(backends) if backends else 'Default only'}")
+        
+    except ImportError:
+        print("   ❌ OpenCV not installed")
+        requirements_met = False
+    
+    # YOLO/Ultralytics
+    try:
+        from ultralytics import YOLO
+        print("🎯 Ultralytics: Available")
+        print("   ✅ YOLOv8 support OK")
+    except ImportError:
+        print("   ❌ Ultralytics not installed")
+        requirements_met = False
+    
+    # yt-dlp for YouTube
+    try:
+        import yt_dlp
+        print(f"📺 yt-dlp: Available")
+        print("   ✅ YouTube support available")
+    except ImportError:
+        print("   ⚠️  yt-dlp not installed (YouTube streams disabled)")
+    
+    # NumPy
+    try:
+        import numpy as np
+        print(f"🔢 NumPy: {np.__version__}")
+        print("   ✅ NumPy OK")
+    except ImportError:
+        print("   ❌ NumPy not installed")
+        requirements_met = False
+    
+    # Violence Detection API
+    try:
+        api_user = os.getenv('SIGHTENGINE_API_USER')
+        api_secret = os.getenv('SIGHTENGINE_API_SECRET')
+        
+        if api_user and api_secret:
+            print(f"🛡️ Sightengine API: Credentials available")
+            print("   ✅ Violence detection ready")
+        else:
+            print("   ⚠️  No Sightengine credentials (violence detection disabled)")
+    except Exception as e:
+        print(f"   ❌ Violence detection error: {e}")
+    
+    print(f"{'✅ All requirements met' if requirements_met else '❌ Some requirements missing'}")
+    return requirements_met
+
+def test_violence_api():
+    """Test violence detection API"""
+    try:
+        from violence_detector import create_violence_detector
+        
+        print("🧪 Testing violence detection API...")
+        detector = create_violence_detector(config)
+        
+        if detector and detector.enabled:
+            print("✅ Violence detection API test passed")
+            return True
+        else:
+            print("❌ Violence detection not available")
+            return False
+    except Exception as e:
+        print(f"❌ Violence detection test failed: {e}")
+        return False
+
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='Configuration Management')
     parser.add_argument('--show', action='store_true', help='Show current configuration')
     parser.add_argument('--validate', action='store_true', help='Validate configuration')
+    parser.add_argument('--check-system', action='store_true', help='Check system requirements')
+    parser.add_argument('--test-api', action='store_true', help='Test violence detection API')
     parser.add_argument('--preset', type=str, help='Load preset configuration')
     parser.add_argument('--save', action='store_true', help='Save current configuration')
     parser.add_argument('--confidence', type=float, help='Set model confidence')
@@ -361,6 +509,12 @@ if __name__ == "__main__":
     
     if args.preset:
         load_preset(args.preset)
+    
+    if args.check_system:
+        check_system_requirements()
+    
+    if args.test_api:
+        test_violence_api()
     
     if args.show or not any(vars(args).values()):
         config.print_config()

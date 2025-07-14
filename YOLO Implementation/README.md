@@ -5,13 +5,15 @@ Complete traffic analysis system with AI-powered vehicle detection, lane monitor
 ## ✨ Features
 
 - **🎯 Advanced AI Detection**: YOLOv8-powered vehicle detection with high accuracy
-- **📺 Multi-Source Input**: Support for webcams, video files, IP cameras, RTSP streams, and **YouTube live streams**
+- **�️ Violence Detection**: Real-time violence, gore, and weapon detection using Sightengine API
+- **�📺 Multi-Source Input**: Support for webcams, video files, IP cameras, RTSP streams, and **YouTube live streams**
 - **🛣️ Interactive Lane Calibration**: Point-and-click polygon creation for custom lane detection
 - **📊 Real-Time Analytics**: Live traffic flow analysis, density monitoring, and statistics
 - **🔄 Auto-Reconnection**: Intelligent stream handling with automatic reconnection for live sources
 - **⚙️ Flexible Configuration**: Extensive customization options and preset configurations
 - **🖥️ Dual Mode Operation**: GUI mode for interactive use, headless mode for server deployment
 - **🛠️ System Tools**: Comprehensive diagnostics, testing utilities, and performance benchmarks
+- **📝 Evidence System**: Automatic saving of violence detection incidents with metadata
 
 ## 🚀 Quick Start
 
@@ -38,11 +40,23 @@ pip install -r requirements.txt
    - Place your trained YOLOv8 model as `models/best.pt`
    - Or use the provided pre-trained model
 
+4. **Setup Violence Detection (Optional):**
+```bash
+python direct_setup.py
+```
+   - Get API credentials from [Sightengine](https://sightengine.com/)
+   - Follow the interactive setup process
+
 ### Basic Usage
 
-**Quick System Check:**
+**System Requirements Check:**
 ```bash
-python system_tools.py --check
+python config.py --check-system
+```
+
+**Setup Violence Detection:**
+```bash
+python direct_setup.py --direct
 ```
 
 **Start Traffic Analysis:**
@@ -119,6 +133,57 @@ python config.py --preset performance
 # Custom settings
 python config.py --confidence 0.6 --threshold 10 --save
 ```
+
+## 🛡️ Violence Detection
+
+The system includes advanced content moderation using the Sightengine API to detect violence, gore, and weapons in real-time.
+
+### Setup Violence Detection
+
+1. **Get API Credentials:**
+   - Visit [Sightengine](https://sightengine.com/) and create a free account
+   - Get your API User ID and Secret from the dashboard
+
+2. **Configure Violence Detection:**
+```bash
+python direct_setup.py
+```
+
+3. **Test API Connection:**
+```bash
+python direct_setup.py --check
+```
+
+### Violence Detection Features
+
+- **Real-time Analysis**: Asynchronous processing without performance impact
+- **Multiple Models**: Violence, gore, and weapon detection
+- **Configurable Thresholds**: Adjustable sensitivity (0.1-1.0)
+- **Evidence Preservation**: Automatic saving of detected incidents
+- **Alert System**: Visual alerts and comprehensive logging
+- **Statistics**: Detection rates and performance metrics
+
+### Configuration Options
+
+```bash
+# Set detection threshold
+python traffic_analysis.py --violence-threshold 0.8
+
+# Set check interval (frames)
+python traffic_analysis.py --violence-interval 60
+
+# Disable violence detection
+python traffic_analysis.py --disable-violence
+```
+
+### Evidence Storage
+
+Detected incidents are automatically saved to:
+- `evidence/violence/` - Violence incidents
+- `evidence/gore/` - Gore detection
+- `evidence/weapons/` - Weapon detection
+- `logs/violence_detection.log` - Detection logs
+- `logs/violence_alerts.log` - Alert logs
 
 ## 🛣️ Lane Calibration Guide
 

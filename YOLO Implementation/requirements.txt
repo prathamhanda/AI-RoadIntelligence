@@ -1,4 +1,5 @@
 # 🚗 Real-Time Vehicle Detection and Traffic Flow Classification System
+# 🛡️ With Violence Detection Integration
 # Core Dependencies - Updated and Clean
 
 # Deep Learning and Computer Vision
@@ -17,6 +18,9 @@ pillow>=8.3.0
 # Configuration and Utilities
 pyyaml>=6.0
 requests>=2.25.0
+
+# Violence Detection API
+# Requests is already included above for Sightengine API calls
 
 # Optional: System Monitoring (for diagnostics)
 psutil>=5.8.0
