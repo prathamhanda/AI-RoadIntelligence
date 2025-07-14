@@ -30,6 +30,7 @@ from datetime import datetime
 # Import our custom modules
 from config import config
 from violence_detector import create_violence_detector, create_alert_manager
+from animal_detector import AnimalDetector, AnimalAlertManager
 
 class YouTubeStreamManager:
     """Enhanced YouTube stream handling with automatic reconnection"""
@@ -84,7 +85,7 @@ class YouTubeStreamManager:
         """Check if URL should be refreshed"""
         time_since_refresh = time.time() - self.last_refresh
         return (time_since_refresh > self.refresh_interval or 
-                self.consecutive_failures > 2)
+                self.consecutive_failures > 1)  # Refresh sooner on failures
     
     def connect(self):
         """Connect with fresh URL if needed"""
@@ -98,20 +99,39 @@ class YouTubeStreamManager:
             if self.cap:
                 self.cap.release()
                 
+            # Use more robust settings for YouTube streams
             self.cap = cv2.VideoCapture(self.current_stream_url, cv2.CAP_FFMPEG)
             
             if self.cap.isOpened():
-                # Optimize settings for live streams
-                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                self.cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
-                self.cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+                # Optimize settings for live streams with better buffering
+                try:
+                    self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)  # Slightly larger buffer for stability
+                    self.cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 15000)  # Longer timeout
+                    self.cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 8000)   # Longer read timeout
+                    print("   ✅ Basic stream settings applied")
+                except Exception as e:
+                    print(f"   ⚠️ Could not apply some stream settings: {e}")
                 
-                # Test read
-                ret, frame = self.cap.read()
-                if ret:
-                    print("✅ YouTube stream connected successfully")
-                    self.consecutive_failures = 0
-                    return True
+                # Additional stability settings (if supported by OpenCV version)
+                try:
+                    if hasattr(cv2, 'CAP_PROP_RECONNECT_THRESHOLD'):
+                        self.cap.set(cv2.CAP_PROP_RECONNECT_THRESHOLD, 1000)
+                        self.cap.set(cv2.CAP_PROP_RECONNECT_DELAY_MAX, 5000)
+                        print("   ✅ Advanced reconnection settings applied")
+                    else:
+                        print("   ℹ️ Advanced reconnection settings not available (older OpenCV)")
+                except Exception as e:
+                    print(f"   ⚠️ Advanced reconnection settings failed: {e}")
+                
+                # Test read with retry
+                for attempt in range(3):
+                    ret, frame = self.cap.read()
+                    if ret:
+                        print(f"✅ YouTube stream connected successfully (attempt {attempt + 1})")
+                        self.consecutive_failures = 0
+                        return True
+                    print(f"   ❌ Connection attempt {attempt + 1} failed")
+                    time.sleep(1)
                     
             print("❌ Failed to connect to YouTube stream")
             self.consecutive_failures += 1
@@ -123,26 +143,53 @@ class YouTubeStreamManager:
             return False
     
     def read(self):
-        """Read frame with auto-reconnection"""
+        """Read frame with auto-reconnection and better error handling"""
         if not self.cap or not self.cap.isOpened():
             if not self.connect():
                 return False, None
         
-        ret, frame = self.cap.read()
-        
-        if not ret:
-            self.consecutive_failures += 1
-            if self.consecutive_failures < self.max_failures:
-                print(f"⚠️  Read failed (attempt {self.consecutive_failures}), reconnecting...")
-                time.sleep(1)
-                if self.connect():
-                    ret, frame = self.cap.read()
-            else:
-                print("❌ Max YouTube failures reached")
-        else:
-            self.consecutive_failures = 0
+        # Try to read frame with timeout handling
+        try:
+            ret, frame = self.cap.read()
             
-        return ret, frame
+            if not ret:
+                self.consecutive_failures += 1
+                print(f"⚠️ Frame read failed (attempt {self.consecutive_failures}/{self.max_failures})")
+                
+                if self.consecutive_failures < self.max_failures:
+                    # Force URL refresh for connection issues
+                    if self.consecutive_failures >= 2:
+                        print("🔄 Forcing stream URL refresh due to multiple failures...")
+                        self.current_stream_url = None
+                        self.last_refresh = 0
+                    
+                    print("🔄 Attempting reconnection...")
+                    time.sleep(2)  # Longer delay for stability
+                    
+                    if self.connect():
+                        ret, frame = self.cap.read()
+                        if ret:
+                            print("✅ Reconnection successful")
+                            self.consecutive_failures = 0
+                            return ret, frame
+                else:
+                    print("❌ Max YouTube failures reached, stream may be unstable")
+                    return False, None
+            else:
+                # Successful read, reset failure counter
+                if self.consecutive_failures > 0:
+                    print(f"✅ Stream recovered after {self.consecutive_failures} failures")
+                    self.consecutive_failures = 0
+                return ret, frame
+                
+        except Exception as e:
+            self.consecutive_failures += 1
+            print(f"❌ Read exception: {e}")
+            if self.consecutive_failures < self.max_failures:
+                time.sleep(1)
+                return self.read()  # Retry once
+            
+        return False, None
     
     def release(self):
         """Release resources"""
@@ -247,7 +294,36 @@ class StreamCalibrator:
         cv2.moveWindow(window_name, 100, 50)
         cv2.setMouseCallback(window_name, self.mouse_callback)
         
+        # Get video FPS for proper playback timing
+        video_fps = 30  # Default FPS
+        try:
+            if hasattr(self.cap, 'get') and not isinstance(self.cap, YouTubeStreamManager):
+                detected_fps = self.cap.get(cv2.CAP_PROP_FPS)
+                if detected_fps > 0:
+                    video_fps = detected_fps
+                    print(f"📹 Video FPS detected: {video_fps:.1f}")
+                else:
+                    print("📹 Could not detect FPS, using default: 30")
+            else:
+                print("📹 Using default FPS for live stream: 30")
+        except:
+            print("📹 FPS detection failed, using default: 30")
+        
+        # Calculate frame delay for natural playback speed
+        frame_delay = 1.0 / video_fps  # Seconds per frame
+        frame_delay_ms = max(1, int(frame_delay * 1000))  # Convert to milliseconds, minimum 1ms
+        
+        print(f"🎬 Calibration playback: {video_fps:.1f} FPS (delay: {frame_delay_ms}ms per frame)")
+        print("   Video will play at normal speed during calibration")
+        
+        # Initialize frame counter for calibration
+        calibration_frame_count = 0
+        calibration_start_time = time.time()
+        
         while True:
+            frame_start_time = time.time()
+            calibration_frame_count += 1
+            
             ret, frame = self.cap.read()
             if not ret:
                 print("Failed to read from stream!")
@@ -256,11 +332,19 @@ class StreamCalibrator:
             self.original_frame = frame.copy()
             self.draw_polygons()
             
+            # Calculate elapsed time and current playback info
+            elapsed_time = time.time() - calibration_start_time
+            current_fps = calibration_frame_count / elapsed_time if elapsed_time > 0 else 0
+            
             # Add instructions overlay
             cv2.putText(self.frame, f"Polygons: {len(self.polygons)}", (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             cv2.putText(self.frame, "Press 'c' to complete, 'r' to reset", (10, 60), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            cv2.putText(self.frame, f"Frame: {calibration_frame_count} | FPS: {current_fps:.1f}", (10, 90), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+            cv2.putText(self.frame, f"Time: {elapsed_time:.1f}s", (10, 120), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
             
             # Scale frame for display if needed
             if self.display_scale != 1.0:
@@ -270,6 +354,7 @@ class StreamCalibrator:
             
             cv2.imshow(window_name, display_frame)
             
+            # Handle keyboard input with proper timing
             key = cv2.waitKey(1) & 0xFF
             if key == ord('c'):
                 if len(self.polygons) >= 2:
@@ -282,6 +367,12 @@ class StreamCalibrator:
             elif key == ord('q'):
                 cv2.destroyAllWindows()
                 return None
+            
+            # Control frame rate for natural video playback
+            frame_elapsed = time.time() - frame_start_time
+            sleep_time = frame_delay - frame_elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
         
         cv2.destroyAllWindows()
         
@@ -354,9 +445,22 @@ class TrafficAnalyzer:
         else:
             print("[WARNING] Violence detection disabled")
         
+        # Initialize animal detection
+        self.animal_detector = AnimalDetector()
+        self.animal_alert_manager = AnimalAlertManager()
+        self.animal_detection_interval = 5  # Check every 5 frames (was 30 - too infrequent!)
+        self.animal_frame_counter = 0
+        self.current_animal_alert = None
+        self.animal_alert_display_time = 0
+        self.animal_alert_duration = 5.0  # seconds
+        
+        print("[ANIMAL] Animal detection initialized and enabled")
+        print(f"[ANIMAL] Detection interval: every {self.animal_detection_interval} frames")
+        
     def analyze_frame(self, frame):
-        """Analyze single frame for vehicle detection and violence detection"""
+        """Analyze single frame for vehicle detection, violence detection, and animal detection"""
         self.stats['total_frames'] += 1
+        self.animal_frame_counter += 1
         
         # Queue frame for violence detection (async)
         if self.violence_detector:
@@ -364,6 +468,14 @@ class TrafficAnalyzer:
         
         # Process any pending violence detection results
         self._process_violence_results()
+        
+        # Process animal detection every N frames
+        if self.animal_frame_counter >= self.animal_detection_interval:
+            self._process_animal_detection(frame)
+            self.animal_frame_counter = 0
+        
+        # Process any pending animal detection results
+        self._process_animal_results()
         
         detection_frame = frame.copy()
         x1, x2 = self.lane_config['detection_area']
@@ -411,6 +523,12 @@ class TrafficAnalyzer:
         if self.current_violence_alert and not self.headless:
             processed_frame = self.violence_detector.create_alert_overlay(
                 processed_frame, self.current_violence_alert
+            )
+        
+        # Add animal detection overlay if active alert
+        if self.current_animal_alert and not self.headless:
+            processed_frame = self._create_animal_alert_overlay(
+                processed_frame, self.current_animal_alert
             )
         
         return processed_frame, vehicles_left, vehicles_right
@@ -464,7 +582,7 @@ class TrafficAnalyzer:
             
             cv2.rectangle(frame, (20, status_y), (20 + status_box_width, status_y + status_box_height), 
                          status_color, -1)
-            cv2.putText(frame, '🛡️ Violence Monitor', (25, status_y + 25), 
+            cv2.putText(frame, 'SHIELD Violence Monitor', (25, status_y + 25), 
                        cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (255, 255, 255), 2)
             
             if unack_alerts > 0:
@@ -473,9 +591,41 @@ class TrafficAnalyzer:
             else:
                 cv2.putText(frame, 'Status: OK', (25, status_y + 50), 
                            cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (255, 255, 255), 2)
+        
+        # Animal detection status box (bottom right)
+        status_box_width = int(frame_width * 0.2)
+        status_box_height = 60
+        status_y = frame_height - status_box_height - 20
+        status_x = frame_width - status_box_width - 20
+        
+        # Get recent animal alerts
+        recent_animal_alerts = self.animal_alert_manager.get_recent_alerts(hours=1)
+        
+        # Status color based on recent alerts and current detection
+        animal_status_color = (0, 255, 0)  # Green default
+        if len(recent_animal_alerts) > 0:
+            animal_status_color = (0, 165, 255)  # Orange for recent alerts
+        if self.current_animal_alert:
+            animal_status_color = (0, 255, 255)  # Yellow for active detection
+        
+        cv2.rectangle(frame, (status_x, status_y), (status_x + status_box_width, status_y + status_box_height), 
+                     animal_status_color, -1)
+        cv2.putText(frame, 'Animal Monitor', (status_x + 5, status_y + 25), 
+                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (0, 0, 0), 2)
+        
+        if self.current_animal_alert:
+            total_animals = self.current_animal_alert['total_animals']
+            cv2.putText(frame, f'{total_animals} Animal(s)!', (status_x + 5, status_y + 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (0, 0, 0), 2)
+        elif len(recent_animal_alerts) > 0:
+            cv2.putText(frame, f'Recent: {len(recent_animal_alerts)}', (status_x + 5, status_y + 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (0, 0, 0), 2)
+        else:
+            cv2.putText(frame, 'Status: Clear', (status_x + 5, status_y + 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (0, 0, 0), 2)
     
     def get_statistics(self):
-        """Get comprehensive analysis statistics including violence detection"""
+        """Get comprehensive analysis statistics including violence and animal detection"""
         elapsed = time.time() - self.stats['analysis_start']
         fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
         
@@ -493,13 +643,22 @@ class TrafficAnalyzer:
             base_stats['violence_detection'] = violence_stats
             base_stats['unacknowledged_alerts'] = self.alert_manager.get_unacknowledged_count()
         
+        # Add animal detection statistics
+        recent_animal_alerts = self.animal_alert_manager.get_recent_alerts(hours=24)
+        base_stats['animal_detection'] = {
+            'recent_alerts_24h': len(recent_animal_alerts),
+            'current_alert_active': self.current_animal_alert is not None,
+            'detection_interval': self.animal_detection_interval
+        }
+        
         return base_stats
     
     def cleanup(self):
-        """Cleanup resources including violence detector"""
+        """Cleanup resources including violence and animal detection"""
         if self.violence_detector:
             self.violence_detector.stop_processing()
             print("[SHIELD] Violence detection stopped")
+        print("[ANIMAL] Animal detection cleaned up")
     
     def _process_violence_results(self):
         """Process pending violence detection results"""
@@ -523,6 +682,132 @@ class TrafficAnalyzer:
             time.time() - self.alert_display_time > self.alert_duration):
             self.current_violence_alert = None
 
+    def _process_animal_detection(self, frame):
+        """Process animal detection for current frame"""
+        try:
+            # Detect animals in frame
+            animal_counts, detections = self.animal_detector.detect_animals(frame)
+            
+            # Check if any animals detected
+            total_animals = sum(animal_counts.values())
+            if total_animals > 0:
+                print(f"[ANIMAL] Frame {self.stats['total_frames']}: {total_animals} animal(s) detected")
+                # Debug: show detailed counts
+                for animal_type, count in animal_counts.items():
+                    if count > 0:
+                        print(f"  - {animal_type.upper()}: {count}")
+                
+                # Debug: show detection details
+                for detection in detections:
+                    print(f"    {detection['type']}: confidence={detection['confidence']:.3f}")
+                
+                # Check if we should alert for any detected animal
+                should_alert = False
+                for animal_type, count in animal_counts.items():
+                    if count > 0 and self.animal_alert_manager.should_alert(animal_type):
+                        should_alert = True
+                        break
+                
+                if should_alert:
+                    # Save evidence and create alert
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    evidence_path = loop.run_until_complete(
+                        self.animal_alert_manager.save_evidence(
+                            frame, animal_counts, detections, self.stats['total_frames']
+                        )
+                    )
+                    
+                    if evidence_path:
+                        alert = loop.run_until_complete(
+                            self.animal_alert_manager.create_alert(
+                                animal_counts, detections, self.stats['total_frames'], evidence_path
+                            )
+                        )
+                        
+                        # Set current alert for display
+                        self.current_animal_alert = {
+                            'animal_counts': animal_counts,
+                            'detections': detections,
+                            'total_animals': total_animals,
+                            'severity': alert['severity'],
+                            'alert': alert
+                        }
+                        self.animal_alert_display_time = time.time()
+                        
+                        print(f"[ANIMAL ALERT] {total_animals} animal(s) detected - Severity: {alert['severity']}")
+                        for animal, count in animal_counts.items():
+                            if count > 0:
+                                print(f"  - {animal.upper()}: {count}")
+                    
+                    loop.close()
+            else:
+                # Debug: show when no animals detected (occasionally)
+                if self.stats['total_frames'] % 150 == 0:  # Every 150 frames
+                    print(f"[ANIMAL] Frame {self.stats['total_frames']}: No animals detected")
+                
+        except Exception as e:
+            print(f"❌ Error in animal detection: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _process_animal_results(self):
+        """Process pending animal detection alert display"""
+        # Clear alert after duration
+        if (self.current_animal_alert and 
+            time.time() - self.animal_alert_display_time > self.animal_alert_duration):
+            self.current_animal_alert = None
+    
+    def _create_animal_alert_overlay(self, frame, animal_alert):
+        """Create animal detection alert overlay"""
+        try:
+            # Annotate frame with animal detections
+            if 'detections' in animal_alert:
+                frame = self.animal_detector.annotate_frame(frame, animal_alert['detections'])
+            
+            # Add alert banner
+            frame_height, frame_width = frame.shape[:2]
+            banner_height = 80
+            
+            # Create semi-transparent overlay
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (0, 0), (frame_width, banner_height), (0, 255, 255), -1)
+            cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+            
+            # Alert text
+            alert_text = f"ANIMAL DETECTION ALERT - {animal_alert['total_animals']} ANIMAL(S) DETECTED"
+            font_scale = min(frame_width / 1920, frame_height / 1080) * 1.2
+            font_scale = max(0.8, min(font_scale, 2.0))
+            
+            text_size = cv2.getTextSize(alert_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 3)[0]
+            text_x = (frame_width - text_size[0]) // 2
+            
+            cv2.putText(frame, alert_text, (text_x, 35), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), 3)
+            
+            # Animal details
+            y_offset = 60
+            for animal, count in animal_alert['animal_counts'].items():
+                if count > 0:
+                    detail_text = f"{animal.upper()}: {count}"
+                    cv2.putText(frame, detail_text, (20, y_offset), 
+                               cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, (0, 0, 0), 2)
+                    y_offset += 25
+            
+            # Severity indicator
+            severity = animal_alert.get('severity', 'LOW')
+            severity_color = (0, 255, 0) if severity == 'LOW' else (0, 165, 255) if severity == 'MEDIUM' else (0, 0, 255)
+            cv2.putText(frame, f"SEVERITY: {severity}", (frame_width - 200, 35), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, severity_color, 2)
+            
+            return frame
+            
+        except Exception as e:
+            print(f"❌ Error creating animal alert overlay: {e}")
+            return frame
+
 def initialize_video_source(source):
     """Initialize video source with proper handling for different types"""
     print(f"\n🔌 Initializing video source: {source}")
@@ -532,7 +817,13 @@ def initialize_video_source(source):
         print("🎥 YouTube stream detected")
         return YouTubeStreamManager(source)
     
-    # Handle other sources
+    # Handle webcam sources
+    if isinstance(source, int) or (isinstance(source, str) and source.isdigit()):
+        camera_id = int(source)
+        print(f"📷 Webcam detected (ID: {camera_id})")
+        return initialize_webcam(camera_id)
+    
+    # Handle other sources (files, IP cameras, RTSP)
     try:
         # Try different backends for better compatibility
         backends = [cv2.CAP_FFMPEG, cv2.CAP_GSTREAMER, cv2.CAP_ANY]
@@ -566,11 +857,119 @@ def initialize_video_source(source):
         print(f"❌ Error initializing source: {e}")
         return None
 
+def initialize_webcam(camera_id):
+    """Enhanced webcam initialization with better error handling and camera detection"""
+    print(f"📷 Initializing webcam (ID: {camera_id})...")
+    
+    # First, check available cameras
+    available_cameras = detect_available_cameras()
+    if not available_cameras:
+        print("❌ No cameras detected on this system")
+        return None
+    
+    print(f"📋 Available cameras: {available_cameras}")
+    
+    # If requested camera is not available, try alternatives
+    if camera_id not in available_cameras:
+        print(f"⚠️  Camera {camera_id} not available, trying alternatives...")
+        camera_id = available_cameras[0]
+        print(f"🔄 Switching to camera {camera_id}")
+    
+    # Try different backends specifically for webcams
+    webcam_backends = [
+        (cv2.CAP_DSHOW, "DirectShow (Windows)"),
+        (cv2.CAP_MSMF, "Media Foundation (Windows)"),
+        (cv2.CAP_ANY, "Auto-detect"),
+        (cv2.CAP_V4L2, "Video4Linux2 (Linux)"),
+        (cv2.CAP_GSTREAMER, "GStreamer")
+    ]
+    
+    for backend, backend_name in webcam_backends:
+        try:
+            print(f"🔄 Trying {backend_name}...")
+            cap = cv2.VideoCapture(camera_id, backend)
+            
+            if cap.isOpened():
+                # Configure webcam settings for better performance
+                try:
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                    cap.set(cv2.CAP_PROP_FPS, 30)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    print(f"   📐 Configured resolution: 1280x720 @ 30fps")
+                except Exception as e:
+                    print(f"   ⚠️ Could not set webcam properties: {e}")
+                
+                # Test frame reading with retry
+                for attempt in range(3):
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        height, width = frame.shape[:2]
+                        print(f"✅ Webcam connected using {backend_name}")
+                        print(f"📐 Actual resolution: {width}x{height}")
+                        
+                        # Get actual FPS
+                        try:
+                            actual_fps = cap.get(cv2.CAP_PROP_FPS)
+                            if actual_fps > 0:
+                                print(f"🎬 Camera FPS: {actual_fps}")
+                        except:
+                            pass
+                        
+                        return cap
+                    else:
+                        print(f"   ❌ Frame read attempt {attempt + 1} failed")
+                        time.sleep(0.5)
+                
+                cap.release()
+                print(f"   ❌ {backend_name} opened but could not read frames")
+            else:
+                print(f"   ❌ {backend_name} failed to open camera")
+                
+        except Exception as e:
+            print(f"   ❌ {backend_name} error: {e}")
+    
+    print("❌ All webcam backends failed")
+    print("\n🔧 Troubleshooting tips:")
+    print("   • Check if camera is being used by another application")
+    print("   • Try closing other video applications (Zoom, Teams, etc.)")
+    print("   • Check Windows Camera privacy settings")
+    print("   • Try a different camera ID (0, 1, 2...)")
+    print("   • Consider using a video file instead: --source videos/your_video.mp4")
+    
+    return None
+
+def detect_available_cameras(max_cameras=10):
+    """Detect available camera indices"""
+    print("🔍 Detecting available cameras...")
+    available_cameras = []
+    
+    for i in range(max_cameras):
+        try:
+            # Quick test with minimal timeout
+            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)  # Use DirectShow for faster detection on Windows
+            if cap.isOpened():
+                ret, frame = cap.read()
+                if ret and frame is not None:
+                    available_cameras.append(i)
+                    # Get camera info if possible
+                    try:
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        print(f"   📷 Camera {i}: {width}x{height}")
+                    except:
+                        print(f"   📷 Camera {i}: Available")
+            cap.release()
+        except:
+            pass
+    
+    return available_cameras
+
 def get_source_selection():
-    """Interactive source selection"""
+    """Interactive source selection with improved webcam handling"""
     print("\n=== INPUT SOURCE SELECTION ===")
     print("1. Video file")
-    print("2. Webcam (default camera)")
+    print("2. Webcam (detect available cameras)")
     print("3. IP Camera/HTTP Stream")
     print("4. RTSP Stream")
     print("5. YouTube Live Stream")
@@ -579,10 +978,37 @@ def get_source_selection():
     
     if choice == "1":
         path = input("Enter video file path (or press Enter for default): ").strip().strip('"')
-        return path if path else "videos/indian_traffic.mp4"
+        return path if path else "videos/indian traffic.mp4"
     elif choice == "2":
-        cam_id = input("Enter camera ID (default 0): ").strip()
-        return int(cam_id) if cam_id.isdigit() else 0
+        # Detect available cameras first
+        print("\n🔍 Scanning for available cameras...")
+        available_cameras = detect_available_cameras()
+        
+        if not available_cameras:
+            print("❌ No cameras detected!")
+            print("🔧 Troubleshooting:")
+            print("   • Ensure no other applications are using the camera")
+            print("   • Check Windows Camera privacy settings")
+            print("   • Try connecting an external USB camera")
+            fallback = input("\nWould you like to try a video file instead? (y/N): ").strip().lower()
+            if fallback == 'y':
+                path = input("Enter video file path: ").strip().strip('"')
+                return path if path else "videos/indian traffic.mp4"
+            else:
+                print("Using default camera ID 0 (may fail)")
+                return 0
+        else:
+            print(f"📷 Found {len(available_cameras)} camera(s): {available_cameras}")
+            if len(available_cameras) == 1:
+                selected_cam = available_cameras[0]
+                print(f"Using camera {selected_cam}")
+                return selected_cam
+            else:
+                cam_input = input(f"Select camera ID {available_cameras} (or press Enter for {available_cameras[0]}): ").strip()
+                if cam_input.isdigit() and int(cam_input) in available_cameras:
+                    return int(cam_input)
+                else:
+                    return available_cameras[0]
     elif choice == "3":
         url = input("Enter IP camera URL: ").strip()
         return url
@@ -594,7 +1020,7 @@ def get_source_selection():
         return youtube_url if youtube_url else "https://www.youtube.com/live/_IFD0Ah8a-M?si=XlnzhwXGBJy_eIWW"
     else:
         print("Invalid choice. Using default video.")
-        return "videos/indian_traffic.mp4"
+        return "videos/indian traffic.mp4"
 
 def load_default_config():
     """Load default lane configuration"""
@@ -774,22 +1200,17 @@ def main():
             lane_config = load_saved_config()
         else:
             print("\n🎯 Starting interactive calibration...")
-            # For YouTube streams, create a separate capture for calibration to avoid consuming the main stream
+            # For YouTube streams, use the existing stream manager
             if isinstance(cap, YouTubeStreamManager):
-                print("   Creating separate connection for calibration...")
-                calibration_cap = cv2.VideoCapture(source)
-                if not calibration_cap.isOpened():
-                    print("   ⚠️ Could not create calibration connection, using main stream")
-                    calibration_cap = cap
+                print("   Using existing YouTube stream for calibration...")
+                calibration_cap = cap
             else:
                 calibration_cap = cap
             
             calibrator = StreamCalibrator(calibration_cap)
             lane_config = calibrator.calibrate_stream()
             
-            # Clean up separate calibration capture if it was created
-            if isinstance(cap, YouTubeStreamManager) and calibration_cap != cap:
-                calibration_cap.release()
+            # No need to clean up for YouTube since we used the same stream
             
             if lane_config is None:
                 print("Calibration cancelled")
@@ -827,7 +1248,10 @@ def main():
     print(f"\n[ROCKET] Starting traffic analysis...")
     print(f"Mode: {'Headless' if args.headless else 'GUI'}")
     if not args.headless:
-        print("Controls: 'q' to quit, 's' to save frame, 'p' to pause")
+        if isinstance(cap, YouTubeStreamManager):
+            print("Controls: 'q' to quit, 's' to save frame, 'p' to pause, 'r' to refresh stream")
+        else:
+            print("Controls: 'q' to quit, 's' to save frame, 'p' to pause")
     
     # Main processing loop
     frame_count = 0
@@ -837,19 +1261,17 @@ def main():
     
     try:
         while True:
-            # Read frame
+            # Read frame with improved error handling
             if isinstance(cap, YouTubeStreamManager):
                 ret, frame = cap.read()
+                if not ret:
+                    print("⚠️ YouTube stream interrupted, attempting recovery...")
+                    time.sleep(2)
+                    continue
             else:
                 ret, frame = cap.read()
-            
-            if not ret:
-                if isinstance(cap, YouTubeStreamManager):
-                    print("⚠️  YouTube stream read failed, retrying...")
-                    time.sleep(0.1)
-                    continue
-                else:
-                    print("⚠️  End of video or read failed")
+                if not ret:
+                    print("⚠️ End of video or read failed")
                     break
             
             frame_count += 1
@@ -876,6 +1298,13 @@ def main():
                         cv2.putText(processed_frame, f'FPS: {current_fps:.1f}', 
                                    (10, processed_frame.shape[0] - 30), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                        
+                        # Add stream status for YouTube
+                        if isinstance(cap, YouTubeStreamManager):
+                            status_text = f"Stream: {'Stable' if cap.consecutive_failures == 0 else f'{cap.consecutive_failures} failures'}"
+                            cv2.putText(processed_frame, status_text, 
+                                       (10, processed_frame.shape[0] - 60), 
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                 
                 # Save to output video
                 if out_writer:
@@ -889,8 +1318,11 @@ def main():
                 # Print progress (headless mode)
                 if args.headless and frame_count % 30 == 0:
                     stats = analyzer.get_statistics()
+                    stream_status = ""
+                    if isinstance(cap, YouTubeStreamManager):
+                        stream_status = f", Stream: {cap.consecutive_failures} failures"
                     print(f"Frame {frame_count}: L={vehicles_left}, R={vehicles_right}, "
-                          f"FPS={stats['fps']:.1f}, Total vehicles={stats['vehicles_detected']}")
+                          f"FPS={stats['fps']:.1f}, Total vehicles={stats['vehicles_detected']}{stream_status}")
             
             # Handle keyboard input (if not headless)
             if not args.headless:
@@ -905,6 +1337,11 @@ def main():
                     filename = f"traffic_frame_{timestamp}.jpg"
                     cv2.imwrite(filename, processed_frame)
                     print(f"📸 Frame saved: {filename}")
+                elif key == ord('r') and isinstance(cap, YouTubeStreamManager):
+                    print("🔄 Manual stream refresh requested...")
+                    cap.current_stream_url = None
+                    cap.last_refresh = 0
+                    cap.consecutive_failures = 0
             
     except KeyboardInterrupt:
         print("\n⏹️  Analysis stopped by user")

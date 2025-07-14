@@ -34,3 +34,79 @@
 2025-07-14 16:12:20,997 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
 2025-07-14 16:12:58,639 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
 2025-07-14 16:12:58,720 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 16:43:56,978 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 16:43:56,978 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 16:43:56,978 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 16:43:56,980 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 16:44:34,772 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 16:44:34,845 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 16:46:32,932 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 16:46:32,932 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 16:46:32,932 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 16:46:32,934 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 16:46:54,672 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 16:46:54,703 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 16:48:24,216 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 16:48:24,216 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 16:48:24,216 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 16:48:24,217 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 16:49:22,272 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 16:49:22,338 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:09:22,344 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 17:09:22,344 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 17:09:22,344 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 17:09:22,345 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 17:09:32,229 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:09:32,246 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:25:34,166 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 17:25:34,166 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 17:25:34,166 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 17:25:34,167 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 17:25:40,689 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:25:40,697 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:28:35,629 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 17:28:35,629 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 17:28:35,629 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 17:28:35,630 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 17:29:05,005 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:29:05,031 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:32:28,450 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 17:32:28,450 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 17:32:28,451 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 17:32:28,451 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 17:34:12,699 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:34:12,738 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:41:37,217 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 17:41:37,219 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 17:41:37,219 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 17:41:37,219 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 17:41:42,029 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:41:42,036 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:44:45,839 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 17:44:45,840 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 17:44:45,840 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 17:44:45,840 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 17:51:00,423 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 17:51:00,424 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 17:51:00,424 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 17:51:00,424 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 17:51:20,759 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:51:21,288 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:54:38,500 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 17:54:38,500 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 17:54:38,500 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 17:54:38,500 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 17:55:02,657 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 17:55:02,690 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 18:08:45,892 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 18:08:45,894 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 18:08:45,894 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 18:08:45,894 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 18:09:02,556 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 18:09:02,591 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 18:09:53,567 - ViolenceDetector - INFO - [SHIELD] Violence detector initialized
+2025-07-14 18:09:53,567 - ViolenceDetector - INFO - Models: violence, gore, weapon
+2025-07-14 18:09:53,567 - ViolenceDetector - INFO - Threshold: 0.7
+2025-07-14 18:09:53,567 - ViolenceDetector - INFO - [ROCKET] Violence detection processing started
+2025-07-14 18:10:22,824 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped
+2025-07-14 18:10:22,892 - ViolenceDetector - INFO - [STOP] Violence detection processing stopped

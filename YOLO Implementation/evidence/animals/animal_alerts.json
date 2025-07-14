@@ -1,0 +1,502 @@
+[
+  {
+    "id": "animal_20250714_172849_240",
+    "timestamp": "2025-07-14T17:28:49.905536",
+    "type": "animal_detection",
+    "frame_number": 240,
+    "animal_counts": {
+      "cow": 0,
+      "horse": 0,
+      "dog": 0,
+      "cat": 0,
+      "sheep": 4,
+      "bird": 0,
+      "elephant": 0
+    },
+    "total_animals": 4,
+    "evidence_path": "evidence/animals\\animal_detection_20250714_172849_frame_240.jpg",
+    "detections": [
+      {
+        "type": "sheep",
+        "confidence": 0.8861258625984192,
+        "bbox": [
+          532,
+          261,
+          769,
+          406
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "sheep",
+        "confidence": 0.6735680103302002,
+        "bbox": [
+          1004,
+          255,
+          1145,
+          350
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "sheep",
+        "confidence": 0.6504676342010498,
+        "bbox": [
+          774,
+          256,
+          980,
+          384
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "sheep",
+        "confidence": 0.6358810663223267,
+        "bbox": [
+          1202,
+          257,
+          1286,
+          345
+        ],
+        "class_id": 19
+      }
+    ],
+    "severity": "MEDIUM",
+    "location": "traffic_stream"
+  },
+  {
+    "id": "animal_20250714_175449_240",
+    "timestamp": "2025-07-14T17:54:49.936996",
+    "type": "animal_detection",
+    "frame_number": 240,
+    "animal_counts": {
+      "cow": 0,
+      "horse": 0,
+      "dog": 0,
+      "cat": 0,
+      "sheep": 4,
+      "bird": 0,
+      "elephant": 0
+    },
+    "total_animals": 4,
+    "evidence_path": "evidence/animals\\animal_detection_20250714_175449_frame_240.jpg",
+    "detections": [
+      {
+        "type": "sheep",
+        "confidence": 0.8861258625984192,
+        "bbox": [
+          532,
+          261,
+          769,
+          406
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "sheep",
+        "confidence": 0.6735680103302002,
+        "bbox": [
+          1004,
+          255,
+          1145,
+          350
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "sheep",
+        "confidence": 0.6504676342010498,
+        "bbox": [
+          774,
+          256,
+          980,
+          384
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "sheep",
+        "confidence": 0.6358810663223267,
+        "bbox": [
+          1202,
+          257,
+          1286,
+          345
+        ],
+        "class_id": 19
+      }
+    ],
+    "severity": "MEDIUM",
+    "location": "traffic_stream"
+  },
+  {
+    "id": "animal_20250714_180859_240",
+    "timestamp": "2025-07-14T18:08:59.326840",
+    "type": "animal_detection",
+    "frame_number": 240,
+    "animal_counts": {
+      "cow": 7,
+      "horse": 0,
+      "dog": 0,
+      "cat": 0,
+      "sheep": 0,
+      "bird": 0,
+      "elephant": 0
+    },
+    "total_animals": 7,
+    "evidence_path": "evidence/animals\\animal_detection_20250714_180859_frame_240.jpg",
+    "detections": [
+      {
+        "type": "cow",
+        "confidence": 0.8861258625984192,
+        "bbox": [
+          532,
+          261,
+          769,
+          406
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.6735680103302002,
+        "bbox": [
+          1004,
+          255,
+          1145,
+          350
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.6504676342010498,
+        "bbox": [
+          774,
+          256,
+          980,
+          384
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.6358810663223267,
+        "bbox": [
+          1202,
+          257,
+          1286,
+          345
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.4223581552505493,
+        "bbox": [
+          1155,
+          257,
+          1208,
+          347
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.3902926445007324,
+        "bbox": [
+          1087,
+          260,
+          1158,
+          341
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.33893725275993347,
+        "bbox": [
+          842,
+          255,
+          981,
+          378
+        ],
+        "class_id": 19
+      }
+    ],
+    "severity": "HIGH",
+    "location": "traffic_stream"
+  },
+  {
+    "id": "animal_20250714_180859_245",
+    "timestamp": "2025-07-14T18:08:59.686548",
+    "type": "animal_detection",
+    "frame_number": 245,
+    "animal_counts": {
+      "cow": 4,
+      "horse": 2,
+      "dog": 0,
+      "cat": 0,
+      "sheep": 0,
+      "bird": 0,
+      "elephant": 0
+    },
+    "total_animals": 6,
+    "evidence_path": "evidence/animals\\animal_detection_20250714_180859_frame_245.jpg",
+    "detections": [
+      {
+        "type": "cow",
+        "confidence": 0.6473958492279053,
+        "bbox": [
+          1199,
+          258,
+          1293,
+          350
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.5172578692436218,
+        "bbox": [
+          1002,
+          258,
+          1134,
+          355
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "horse",
+        "confidence": 0.47407975792884827,
+        "bbox": [
+          741,
+          259,
+          955,
+          384
+        ],
+        "class_id": 17
+      },
+      {
+        "type": "horse",
+        "confidence": 0.3534693121910095,
+        "bbox": [
+          508,
+          260,
+          745,
+          405
+        ],
+        "class_id": 17
+      },
+      {
+        "type": "cow",
+        "confidence": 0.30889928340911865,
+        "bbox": [
+          1315,
+          260,
+          1358,
+          310
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.2924776077270508,
+        "bbox": [
+          1104,
+          260,
+          1179,
+          354
+        ],
+        "class_id": 19
+      }
+    ],
+    "severity": "HIGH",
+    "location": "traffic_stream"
+  },
+  {
+    "id": "animal_20250714_181007_240",
+    "timestamp": "2025-07-14T18:10:07.382576",
+    "type": "animal_detection",
+    "frame_number": 240,
+    "animal_counts": {
+      "cow": 7,
+      "horse": 0,
+      "dog": 0,
+      "cat": 0,
+      "sheep": 0,
+      "bird": 0,
+      "elephant": 0
+    },
+    "total_animals": 7,
+    "evidence_path": "evidence/animals\\animal_detection_20250714_181007_frame_240.jpg",
+    "detections": [
+      {
+        "type": "cow",
+        "confidence": 0.8861258625984192,
+        "bbox": [
+          532,
+          261,
+          769,
+          406
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.6735680103302002,
+        "bbox": [
+          1004,
+          255,
+          1145,
+          350
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.6504676342010498,
+        "bbox": [
+          774,
+          256,
+          980,
+          384
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.6358810663223267,
+        "bbox": [
+          1202,
+          257,
+          1286,
+          345
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.4223581552505493,
+        "bbox": [
+          1155,
+          257,
+          1208,
+          347
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.3902926445007324,
+        "bbox": [
+          1087,
+          260,
+          1158,
+          341
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.33893725275993347,
+        "bbox": [
+          842,
+          255,
+          981,
+          378
+        ],
+        "class_id": 19
+      }
+    ],
+    "severity": "HIGH",
+    "location": "traffic_stream"
+  },
+  {
+    "id": "animal_20250714_181007_245",
+    "timestamp": "2025-07-14T18:10:07.682419",
+    "type": "animal_detection",
+    "frame_number": 245,
+    "animal_counts": {
+      "cow": 4,
+      "horse": 2,
+      "dog": 0,
+      "cat": 0,
+      "sheep": 0,
+      "bird": 0,
+      "elephant": 0
+    },
+    "total_animals": 6,
+    "evidence_path": "evidence/animals\\animal_detection_20250714_181007_frame_245.jpg",
+    "detections": [
+      {
+        "type": "cow",
+        "confidence": 0.6473958492279053,
+        "bbox": [
+          1199,
+          258,
+          1293,
+          350
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.5172578692436218,
+        "bbox": [
+          1002,
+          258,
+          1134,
+          355
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "horse",
+        "confidence": 0.47407975792884827,
+        "bbox": [
+          741,
+          259,
+          955,
+          384
+        ],
+        "class_id": 17
+      },
+      {
+        "type": "horse",
+        "confidence": 0.3534693121910095,
+        "bbox": [
+          508,
+          260,
+          745,
+          405
+        ],
+        "class_id": 17
+      },
+      {
+        "type": "cow",
+        "confidence": 0.30889928340911865,
+        "bbox": [
+          1315,
+          260,
+          1358,
+          310
+        ],
+        "class_id": 19
+      },
+      {
+        "type": "cow",
+        "confidence": 0.2924776077270508,
+        "bbox": [
+          1104,
+          260,
+          1179,
+          354
+        ],
+        "class_id": 19
+      }
+    ],
+    "severity": "HIGH",
+    "location": "traffic_stream"
+  }
+]
