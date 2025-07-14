@@ -1,11 +1,28 @@
+# 🚗 Real-Time Vehicle Detection and Traffic Flow Classification System
+# Core Dependencies - Updated and Clean
+
+# Deep Learning and Computer Vision
+torch>=2.0.0
+torchvision>=0.15.0
 ultralytics>=8.0.0
-opencv-python>=4.5.0
-torch>=1.9.0
-torchvision>=0.10.0
+opencv-python>=4.8.0
+
+# YouTube Stream Support
+yt-dlp>=2023.1.6
+
+# Data Processing
 numpy>=1.21.0
-pandas>=1.3.0
-matplotlib>=3.4.0
-seaborn>=0.11.0
-Pillow>=8.3.0
-PyYAML>=5.4.0
-ipython>=7.25.0
+pillow>=8.3.0
+
+# Configuration and Utilities
+pyyaml>=6.0
+requests>=2.25.0
+
+# Optional: System Monitoring (for diagnostics)
+psutil>=5.8.0
+
+# Optional: GUI Enhancement
+matplotlib>=3.5.0
+
+# Optional: Performance Monitoring
+tqdm>=4.60.0
