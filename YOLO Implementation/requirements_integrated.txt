@@ -1,0 +1,31 @@
+# IoT-Based Traffic Regulation System Requirements
+# Complete integrated system with all features
+
+# Core Computer Vision and Machine Learning
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+numpy>=1.21.0
+torch>=1.13.0
+torchvision>=0.14.0
+
+# SUMO Traffic Simulation (optional but recommended)
+# Note: SUMO must be installed separately from https://sumo.dlr.de/
+traci>=1.18.0
+
+# SMS Alerts via Twilio (optional but recommended)
+twilio>=8.5.0
+
+# YouTube Stream Support (optional)
+yt-dlp>=2023.7.6
+
+# Additional utilities
+requests>=2.28.0
+asyncio
+threading
+argparse
+json
+datetime
+traceback
+
+# Development and Testing (optional)
+pytest>=7.0.0

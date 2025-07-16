@@ -22,6 +22,8 @@ import argparse
 import os
 import time
 import threading
+import traceback
+import asyncio
 from queue import Queue
 from ultralytics import YOLO
 import json
@@ -31,6 +33,282 @@ from datetime import datetime
 from config import config
 from violence_detector import create_violence_detector, create_alert_manager
 from animal_detector import AnimalDetector, AnimalAlertManager
+
+# === SUMO Traffic Control Integration ===
+try:
+    import traci
+    SUMO_AVAILABLE = True
+    print("✅ SUMO TraCI available - Traffic control enabled")
+except ImportError:
+    SUMO_AVAILABLE = False
+    print("⚠️ SUMO TraCI not available - Traffic control disabled")
+
+# === SMS Alert Integration ===
+try:
+    from twilio.rest import Client
+    TWILIO_AVAILABLE = True
+    print("✅ Twilio available - SMS alerts enabled")
+except ImportError:
+    TWILIO_AVAILABLE = False
+    print("⚠️ Twilio not available - SMS alerts disabled")
+
+# === SUMO Configuration ===
+SUMO_CONFIG_PATH = "../simulation_files/map.sumocfg"  # Fixed path to parent directory
+JUNCTION_ID = "n1"
+
+# === Lane-Specific Traffic Control Parameters ===
+LEFT_LANE_THRESHOLD = 8   # Vehicles in left lane to trigger control
+RIGHT_LANE_THRESHOLD = 8  # Vehicles in right lane to trigger control
+DENSITY_IMBALANCE_RATIO = 2.0  # Ratio difference to trigger lane priority
+EMERGENCY_STOP_DURATION = 30   # seconds to stop traffic for emergencies
+
+# === Alert Duration Parameters ===
+VIOLENCE_ALERT_DURATION = 100  # seconds
+ANIMAL_ALERT_DURATION = 20     # seconds
+
+# === Traffic Light States for 2-Lane Intersection ===
+TRAFFIC_STATES = {
+    'NORMAL_FLOW': "GGrGG",      # Both lanes green (normal operation)
+    'LEFT_PRIORITY': "GGrrr",    # Prioritize left lane 
+    'RIGHT_PRIORITY': "rrGGG",   # Prioritize right lane
+    'EMERGENCY_STOP': "rrrrr",   # Emergency stop all traffic
+    'ANIMAL_CAUTION': "yyyyy"    # Yellow caution for animal presence
+}
+
+# === Twilio Configuration (can be overridden via config) ===
+TWILIO_ACCOUNT_SID = "AC3e9621790fea1070b200fd40a16c1191"
+TWILIO_AUTH_TOKEN = "d25bc282410c2247ac6f71f2b55c1cdf"
+TWILIO_PHONE_NUMBER = "+16284710074"
+POLICE_NUMBER = "+919877035742"  # Default emergency number
+
+# === Traffic Control State Variables ===
+violence_detected_start = None
+violence_alert_sent = False
+animal_detected_start = None
+animal_light_adjusted = False
+
+# === SUMO Traffic Control Functions ===
+def start_sumo():
+    """Initialize SUMO traffic simulation"""
+    if not SUMO_AVAILABLE:
+        print("⚠️ SUMO not available - Traffic control simulation disabled")
+        return False
+    
+    try:
+        if not os.path.exists(SUMO_CONFIG_PATH):
+            print(f"⚠️ SUMO config file not found: {SUMO_CONFIG_PATH}")
+            return False
+            
+        traci.start(["sumo-gui", "-c", SUMO_CONFIG_PATH])
+        print("✅ SUMO traffic simulation started")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to start SUMO: {e}")
+        return False
+
+def stop_sumo():
+    """Stop SUMO traffic simulation"""
+    if SUMO_AVAILABLE and traci.isLoaded():
+        try:
+            traci.close()
+            print("🛑 SUMO traffic simulation stopped")
+        except Exception as e:
+            print(f"⚠️ Error stopping SUMO: {e}")
+
+def control_traffic_light(vehicles_left, vehicles_right):
+    """Enhanced lane-specific traffic control based on individual lane density"""
+    if not SUMO_AVAILABLE or not traci.isLoaded():
+        return {"action": "SUMO_DISABLED", "reason": "SUMO not available"}
+        
+    try:
+        # Analyze lane-specific traffic conditions
+        left_heavy = vehicles_left >= LEFT_LANE_THRESHOLD
+        right_heavy = vehicles_right >= RIGHT_LANE_THRESHOLD
+        total_vehicles = vehicles_left + vehicles_right
+        
+        # Calculate density imbalance ratio
+        if vehicles_right > 0:
+            density_ratio = vehicles_left / vehicles_right
+        else:
+            density_ratio = float('inf') if vehicles_left > 0 else 1.0
+            
+        # Determine traffic control action based on lane analysis
+        if violence_detected_start is not None:
+            # Emergency: Stop all traffic for violence
+            current_state = TRAFFIC_STATES['EMERGENCY_STOP']
+            action_reason = f"🚨 EMERGENCY STOP - Violence detected"
+            action_type = "EMERGENCY_VIOLENCE"
+            
+        elif animal_detected_start is not None:
+            # Caution: Yellow lights for animal presence  
+            current_state = TRAFFIC_STATES['ANIMAL_CAUTION']
+            action_reason = f"🐕 ANIMAL CAUTION - {total_vehicles} vehicles detected"
+            action_type = "ANIMAL_CAUTION"
+            
+        elif left_heavy and right_heavy:
+            # Both lanes congested - normal flow to prevent deadlock
+            current_state = TRAFFIC_STATES['NORMAL_FLOW']
+            action_reason = f"🚦 BOTH LANES HEAVY (L:{vehicles_left}, R:{vehicles_right}) - Normal flow"
+            action_type = "BOTH_LANES_HEAVY"
+            
+        elif left_heavy and not right_heavy:
+            # Left lane congested - prioritize left lane
+            current_state = TRAFFIC_STATES['LEFT_PRIORITY']
+            action_reason = f"⬅️ LEFT LANE PRIORITY ({vehicles_left} vehicles) - Right clear ({vehicles_right})"
+            action_type = "LEFT_PRIORITY"
+            
+        elif right_heavy and not left_heavy:
+            # Right lane congested - prioritize right lane
+            current_state = TRAFFIC_STATES['RIGHT_PRIORITY']
+            action_reason = f"➡️ RIGHT LANE PRIORITY ({vehicles_right} vehicles) - Left clear ({vehicles_left})"
+            action_type = "RIGHT_PRIORITY"
+            
+        elif density_ratio >= DENSITY_IMBALANCE_RATIO:
+            # Significant left lane imbalance
+            current_state = TRAFFIC_STATES['LEFT_PRIORITY']
+            action_reason = f"⬅️ LEFT DENSITY IMBALANCE (ratio: {density_ratio:.1f}) - L:{vehicles_left}, R:{vehicles_right}"
+            action_type = "DENSITY_IMBALANCE_LEFT"
+            
+        elif density_ratio <= (1.0 / DENSITY_IMBALANCE_RATIO):
+            # Significant right lane imbalance  
+            current_state = TRAFFIC_STATES['RIGHT_PRIORITY']
+            action_reason = f"➡️ RIGHT DENSITY IMBALANCE (ratio: {density_ratio:.1f}) - L:{vehicles_left}, R:{vehicles_right}"
+            action_type = "DENSITY_IMBALANCE_RIGHT"
+            
+        else:
+            # Normal traffic conditions
+            current_state = TRAFFIC_STATES['NORMAL_FLOW']
+            action_reason = f"✅ NORMAL FLOW - Balanced traffic (L:{vehicles_left}, R:{vehicles_right})"
+            action_type = "NORMAL_FLOW"
+        
+        # Apply traffic light state
+        traci.trafficlight.setRedYellowGreenState(JUNCTION_ID, current_state)
+        
+        # Get current phase for confirmation
+        current_phase = traci.trafficlight.getPhase(JUNCTION_ID)
+        
+        print(f"🚦 Traffic Control Applied:")
+        print(f"   {action_reason}")
+        print(f"   Signal State: {current_state} (Phase: {current_phase})")
+        
+        return {
+            "action": action_type,
+            "reason": action_reason,
+            "vehicles_left": vehicles_left,
+            "vehicles_right": vehicles_right, 
+            "traffic_state": current_state,
+            "phase": current_phase,
+            "density_ratio": density_ratio
+        }
+            
+    except Exception as e:
+        error_msg = f"❌ Error controlling traffic light: {e}"
+        print(error_msg)
+        return {"action": "ERROR", "reason": error_msg}
+
+def adjust_traffic_light_for_animals():
+    """Extend traffic light timing when animals are detected"""
+    if not SUMO_AVAILABLE or not traci.isLoaded():
+        return
+        
+    try:
+        print("🦘 Animal detected >20s: Extending green phase for safety")
+        current_phase = traci.trafficlight.getPhase(JUNCTION_ID)
+        traci.trafficlight.setPhaseDuration(JUNCTION_ID, 60)  # Extend to 60 seconds
+        print(f"✅ Traffic phase {current_phase} extended to 60s for animal safety")
+    except Exception as e:
+        print(f"❌ Failed to adjust traffic light for animals: {e}")
+
+# === SMS Alert Functions ===
+def send_sms_alert(phone_number, message):
+    """Send SMS alert using Twilio"""
+    if not TWILIO_AVAILABLE:
+        print(f"⚠️ SMS Alert (Twilio disabled): {message}")
+        return False
+        
+    try:
+        print(f"📲 Sending emergency SMS to {phone_number}")
+        print(f"   Message: {message}")
+        
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        sms_message = client.messages.create(
+            body=message,
+            from_=TWILIO_PHONE_NUMBER,
+            to=phone_number
+        )
+        print(f"✅ Emergency SMS sent successfully. SID: {sms_message.sid}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to send SMS alert: {e}")
+        return False
+
+def check_violence_alert(current_violence_alert):
+    """Monitor violence detection and send alerts when threshold exceeded"""
+    global violence_detected_start, violence_alert_sent
+    
+    if current_violence_alert:
+        if violence_detected_start is None:
+            violence_detected_start = time.time()
+            print(f"🚨 Violence monitoring started - Alert threshold: {VIOLENCE_ALERT_DURATION}s")
+        
+        elapsed = time.time() - violence_detected_start
+        if elapsed > VIOLENCE_ALERT_DURATION and not violence_alert_sent:
+            alert_message = f"EMERGENCY: Violence detected continuously for {elapsed:.0f} seconds at traffic intersection. Immediate police response required."
+            send_sms_alert(POLICE_NUMBER, alert_message)
+            violence_alert_sent = True
+            print(f"🚨 CRITICAL: Violence alert sent to authorities after {elapsed:.0f}s")
+    else:
+        if violence_detected_start is not None:
+            elapsed = time.time() - violence_detected_start
+            print(f"✅ Violence monitoring ended after {elapsed:.0f}s")
+        violence_detected_start = None
+        violence_alert_sent = False
+
+def check_animal_duration(current_animal_alert):
+    """Monitor animal detection and adjust traffic accordingly"""
+    global animal_detected_start, animal_light_adjusted
+    
+    if current_animal_alert:
+        if animal_detected_start is None:
+            animal_detected_start = time.time()
+            print(f"🐕 Animal monitoring started - Traffic adjustment threshold: {ANIMAL_ALERT_DURATION}s")
+        
+        elapsed = time.time() - animal_detected_start
+        if elapsed > ANIMAL_ALERT_DURATION and not animal_light_adjusted:
+            adjust_traffic_light_for_animals()
+            animal_light_adjusted = True
+            print(f"🚦 Traffic lights adjusted for animal safety after {elapsed:.0f}s")
+    else:
+        if animal_detected_start is not None:
+            elapsed = time.time() - animal_detected_start
+            print(f"✅ Animal monitoring ended after {elapsed:.0f}s")
+        animal_detected_start = None
+        animal_light_adjusted = False
+
+def process_traffic_control_frame(vehicles_left, vehicles_right, current_violence_alert, current_animal_alert):
+    """Process one frame for traffic control decisions with detailed lane analysis"""
+    control_result = {"action": "DISABLED", "reason": "Traffic control disabled"}
+    
+    try:
+        # Step SUMO simulation
+        if SUMO_AVAILABLE and traci.isLoaded():
+            traci.simulationStep()
+        
+        # Control traffic based on lane-specific vehicle density
+        control_result = control_traffic_light(vehicles_left, vehicles_right)
+        
+        # Monitor violence detection
+        check_violence_alert(current_violence_alert)
+        
+        # Monitor animal detection  
+        check_animal_duration(current_animal_alert)
+        
+        return control_result
+        
+    except Exception as e:
+        error_msg = f"⚠️ Error in traffic control processing: {e}"
+        print(error_msg)
+        return {"action": "ERROR", "reason": error_msg}
 
 class YouTubeStreamManager:
     """Enhanced YouTube stream handling with automatic reconnection"""
@@ -417,20 +695,48 @@ class StreamCalibrator:
             print(f"⚠️  Could not save configuration: {e}")
 
 class TrafficAnalyzer:
-    """Main traffic analysis processor with integrated violence detection"""
+    """Main traffic analysis processor with integrated violence detection and traffic control"""
     
-    def __init__(self, model, lane_config, headless=False):
+    def __init__(self, model, lane_config, headless=False, enable_traffic_control=True):
         self.model = model
         self.lane_config = lane_config
         self.headless = headless
+        self.enable_traffic_control = enable_traffic_control
         self.frame_queue = Queue(maxsize=5)
         self.result_queue = Queue(maxsize=5)
         self.processing = False
         self.stats = {
             'total_frames': 0,
             'vehicles_detected': 0,
-            'analysis_start': time.time()
+            'analysis_start': time.time(),
+            'traffic_control_actions': 0,
+            'violence_alerts_sent': 0,
+            'animal_traffic_adjustments': 0,
+            'left_lane_control_actions': 0,
+            'right_lane_control_actions': 0,
+            'emergency_stops': 0
         }
+        
+        # Traffic control state tracking
+        self.current_traffic_control = {
+            "action": "INITIALIZING",
+            "reason": "System starting up",
+            "vehicles_left": 0,
+            "vehicles_right": 0,
+            "traffic_state": "NORMAL_FLOW",
+            "density_ratio": 1.0
+        }
+        
+        # Initialize traffic control system
+        self.sumo_enabled = False
+        if self.enable_traffic_control and SUMO_AVAILABLE:
+            self.sumo_enabled = start_sumo()
+            if self.sumo_enabled:
+                print("🚦 [TRAFFIC CONTROL] SUMO traffic simulation integrated")
+            else:
+                print("⚠️ [TRAFFIC CONTROL] SUMO simulation failed to start")
+        else:
+            print("⚠️ [TRAFFIC CONTROL] Traffic control disabled or SUMO unavailable")
         
         # Initialize violence detection
         self.violence_detector = create_violence_detector(config)
@@ -516,6 +822,38 @@ class TrafficAnalyzer:
                 else:
                     vehicles_right += 1
         
+        # === TRAFFIC CONTROL INTEGRATION ===
+        # Process traffic control decisions based on current detections
+        if self.enable_traffic_control:
+            try:
+                control_result = process_traffic_control_frame(
+                    vehicles_left, 
+                    vehicles_right, 
+                    self.current_violence_alert, 
+                    self.current_animal_alert
+                )
+                
+                # Store control result for display
+                self.current_traffic_control = control_result
+                self.stats['traffic_control_actions'] += 1
+                
+                # Update specific action counters
+                if control_result.get('action') == 'LEFT_PRIORITY':
+                    self.stats['left_lane_control_actions'] += 1
+                elif control_result.get('action') == 'RIGHT_PRIORITY':
+                    self.stats['right_lane_control_actions'] += 1
+                elif control_result.get('action') in ['EMERGENCY_VIOLENCE', 'ANIMAL_CAUTION']:
+                    self.stats['emergency_stops'] += 1
+                    
+            except Exception as e:
+                print(f"⚠️ Traffic control error: {e}")
+                self.current_traffic_control = {
+                    "action": "ERROR", 
+                    "reason": str(e),
+                    "vehicles_left": vehicles_left,
+                    "vehicles_right": vehicles_right
+                }
+        
         # Add traffic analysis annotations
         self.add_annotations(processed_frame, vehicles_left, vehicles_right)
         
@@ -534,98 +872,306 @@ class TrafficAnalyzer:
         return processed_frame, vehicles_left, vehicles_right
     
     def add_annotations(self, frame, vehicles_left, vehicles_right):
-        """Add traffic analysis overlays including violence detection status"""
+        """Add traffic analysis overlays with resolution-adaptive scaling and crisp rendering"""
         heavy_threshold = 8
         
         # Traffic intensity
-        intensity_left = "Heavy" if vehicles_left > heavy_threshold else "Smooth"
-        intensity_right = "Heavy" if vehicles_right > heavy_threshold else "Smooth"
+        intensity_left = "HEAVY TRAFFIC" if vehicles_left > heavy_threshold else "NORMAL FLOW"
+        intensity_right = "HEAVY TRAFFIC" if vehicles_right > heavy_threshold else "NORMAL FLOW"
         
         frame_height, frame_width = frame.shape[:2]
         
-        # Calculate font size based on frame size
-        font_scale = min(frame_width / 1920, frame_height / 1080) * 1.5
-        font_scale = max(0.5, min(font_scale, 2.0))
+        # Advanced resolution-adaptive scaling for crisp rendering
+        # Calculate pixel density factor for better scaling
+        pixel_density = (frame_width * frame_height) / (1920 * 1080)  # Reference: 1080p
+        density_factor = min(max(pixel_density, 0.3), 2.5)  # Clamp between 0.3x and 2.5x
         
-        # Left lane info box
-        box_width = int(frame_width * 0.25)
-        box_height = 70
+        # Multi-tier font scaling for different resolutions
+        if frame_width >= 3840:  # 4K and above
+            base_font_scale = 2.2
+            thickness_multiplier = 4
+        elif frame_width >= 2560:  # 2K
+            base_font_scale = 1.8
+            thickness_multiplier = 3
+        elif frame_width >= 1920:  # 1080p
+            base_font_scale = 1.4
+            thickness_multiplier = 3
+        elif frame_width >= 1280:  # 720p
+            base_font_scale = 1.0
+            thickness_multiplier = 2
+        else:  # Lower resolutions
+            base_font_scale = 0.8
+            thickness_multiplier = 2
         
-        cv2.rectangle(frame, (20, 20), (20 + box_width, 20 + box_height), (0, 0, 255), -1)
-        cv2.putText(frame, f'Left Lane: {vehicles_left} vehicles', (30, 45), 
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, (255, 255, 255), 2)
-        cv2.putText(frame, f'Status: {intensity_left}', (30, 70), 
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, (255, 255, 255), 2)
+        # Apply density factor for smooth scaling
+        font_scale = base_font_scale * density_factor
+        font_scale = max(0.6, min(font_scale, 3.0))  # Reasonable bounds
         
-        # Right lane info box
-        right_x = frame_width - box_width - 20
-        cv2.rectangle(frame, (right_x, 20), (right_x + box_width, 20 + box_height), (0, 0, 255), -1)
-        cv2.putText(frame, f'Right Lane: {vehicles_right} vehicles', (right_x + 10, 45), 
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, (255, 255, 255), 2)
-        cv2.putText(frame, f'Status: {intensity_right}', (right_x + 10, 70), 
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, (255, 255, 255), 2)
+        # Resolution-adaptive dimensions with integer precision
+        box_width = max(int(frame_width * 0.28), 300)  # Minimum width
+        box_height = max(int(120 * density_factor), 100)  # Minimum height
+        border_thickness = max(int(3 * density_factor), 2)  # Minimum border
         
-        # Violence detection status box (bottom left)
+        # Text thickness for crisp rendering
+        text_thickness = max(int(thickness_multiplier * density_factor), 2)
+        
+        # Determine left lane traffic light status
+        if self.enable_traffic_control and hasattr(self, 'current_traffic_control'):
+            traffic_action = self.current_traffic_control.get('action', 'NORMAL_FLOW')
+            if traffic_action in ['LEFT_PRIORITY', 'NORMAL_FLOW']:
+                left_light_color = (0, 255, 0)  # Green
+                left_light_text = "GREEN LIGHT"
+                left_bg_color = (0, 120, 0)  # Dark green background
+            elif traffic_action in ['EMERGENCY_VIOLENCE', 'ANIMAL_CAUTION']:
+                left_light_color = (255, 255, 255)  # White text
+                left_light_text = "EMERGENCY STOP"
+                left_bg_color = (0, 0, 180)  # Dark red background
+            elif traffic_action == 'RIGHT_PRIORITY':
+                left_light_color = (255, 255, 255)  # White text
+                left_light_text = "RED LIGHT"
+                left_bg_color = (0, 0, 180)  # Dark red background
+            else:
+                left_light_color = (0, 0, 0)  # Black text
+                left_light_text = "CAUTION"
+                left_bg_color = (0, 220, 220)  # Yellow background
+        else:
+            left_light_color = (220, 220, 220)  # Light gray
+            left_light_text = "SYSTEM DISABLED"
+            left_bg_color = (100, 100, 100)  # Dark gray background
+        
+        # Left lane info box with pixel-perfect positioning
+        shadow_offset = max(int(5 * density_factor), 3)
+        
+        # Background shadow with anti-aliasing
+        cv2.rectangle(frame, (15, 15), (15 + box_width + shadow_offset, 15 + box_height + shadow_offset), (0, 0, 0), -1)
+        # Main rectangle with precise edges
+        cv2.rectangle(frame, (20, 20), (20 + box_width, 20 + box_height), left_bg_color, -1)
+        # Crisp white border
+        cv2.rectangle(frame, (20, 20), (20 + box_width, 20 + box_height), (255, 255, 255), border_thickness)
+        
+        # Left lane text with anti-aliased rendering and precise positioning
+        text_margin = max(int(15 * density_factor), 10)
+        line_spacing = max(int(25 * density_factor), 20)
+        
+        cv2.putText(frame, 'LEFT LANE', (20 + text_margin, 20 + line_spacing), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.85, (255, 255, 255), text_thickness, cv2.LINE_AA)
+        cv2.putText(frame, f'Vehicles: {vehicles_left}', (20 + text_margin, 20 + line_spacing * 2), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.7, (255, 255, 255), text_thickness - 1, cv2.LINE_AA)
+        cv2.putText(frame, f'{intensity_left}', (20 + text_margin, 20 + line_spacing * 3), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.65, (255, 255, 255), text_thickness - 1, cv2.LINE_AA)
+        cv2.putText(frame, f'{left_light_text}', (20 + text_margin, 20 + line_spacing * 4), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.65, left_light_color, text_thickness - 1, cv2.LINE_AA)
+        
+        # Right lane info box with pixel-perfect positioning
+        right_x = frame_width - box_width - 25
+        
+        # Determine right lane traffic light status
+        if self.enable_traffic_control and hasattr(self, 'current_traffic_control'):
+            traffic_action = self.current_traffic_control.get('action', 'NORMAL_FLOW')
+            if traffic_action in ['RIGHT_PRIORITY', 'NORMAL_FLOW']:
+                right_light_color = (0, 255, 0)  # Green
+                right_light_text = "GREEN LIGHT"
+                right_bg_color = (0, 120, 0)  # Dark green background
+            elif traffic_action in ['EMERGENCY_VIOLENCE', 'ANIMAL_CAUTION']:
+                right_light_color = (255, 255, 255)  # White text
+                right_light_text = "EMERGENCY STOP"
+                right_bg_color = (0, 0, 180)  # Dark red background
+            elif traffic_action == 'LEFT_PRIORITY':
+                right_light_color = (255, 255, 255)  # White text
+                right_light_text = "RED LIGHT"
+                right_bg_color = (0, 0, 180)  # Dark red background
+            else:
+                right_light_color = (0, 0, 0)  # Black text
+                right_light_text = "CAUTION"
+                right_bg_color = (0, 220, 220)  # Yellow background
+        else:
+            right_light_color = (220, 220, 220)  # Light gray
+            right_light_text = "SYSTEM DISABLED"
+            right_bg_color = (100, 100, 100)  # Dark gray background
+        
+        # Background shadow with anti-aliasing
+        cv2.rectangle(frame, (right_x - shadow_offset, 15), (right_x + box_width + shadow_offset, 15 + box_height + shadow_offset), (0, 0, 0), -1)
+        # Main rectangle with precise edges
+        cv2.rectangle(frame, (right_x, 20), (right_x + box_width, 20 + box_height), right_bg_color, -1)
+        # Crisp white border
+        cv2.rectangle(frame, (right_x, 20), (right_x + box_width, 20 + box_height), (255, 255, 255), border_thickness)
+        
+        # Right lane text with anti-aliased rendering and precise positioning
+        cv2.putText(frame, 'RIGHT LANE', (right_x + text_margin, 20 + line_spacing), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.85, (255, 255, 255), text_thickness, cv2.LINE_AA)
+        cv2.putText(frame, f'Vehicles: {vehicles_right}', (right_x + text_margin, 20 + line_spacing * 2), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.7, (255, 255, 255), text_thickness - 1, cv2.LINE_AA)
+        cv2.putText(frame, f'{intensity_right}', (right_x + text_margin, 20 + line_spacing * 3), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.65, (255, 255, 255), text_thickness - 1, cv2.LINE_AA)
+        cv2.putText(frame, f'{right_light_text}', (right_x + text_margin, 20 + line_spacing * 4), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.65, right_light_color, text_thickness - 1, cv2.LINE_AA)
+        
+        # Violence detection status box (bottom left) with crisp rendering
         if self.violence_detector and self.violence_detector.enabled:
-            status_box_width = int(frame_width * 0.2)
-            status_box_height = 60
-            status_y = frame_height - status_box_height - 20
+            status_box_width = max(int(frame_width * 0.22), 280)
+            status_box_height = max(int(90 * density_factor), 80)
+            status_y = frame_height - status_box_height - max(int(25 * density_factor), 20)
             
             # Get violence detection statistics
             violence_stats = self.violence_detector.get_statistics()
             unack_alerts = self.alert_manager.get_unacknowledged_count()
             
-            # Status color based on recent alerts
-            status_color = (0, 255, 0) if unack_alerts == 0 else (0, 165, 255)  # Green or Orange
+            # Status color and text based on recent alerts
             if self.current_violence_alert:
-                status_color = (0, 0, 255)  # Red for active alert
-            
-            cv2.rectangle(frame, (20, status_y), (20 + status_box_width, status_y + status_box_height), 
-                         status_color, -1)
-            cv2.putText(frame, 'SHIELD Violence Monitor', (25, status_y + 25), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (255, 255, 255), 2)
-            
-            if unack_alerts > 0:
-                cv2.putText(frame, f'Alerts: {unack_alerts}', (25, status_y + 50), 
-                           cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (255, 255, 255), 2)
+                status_bg_color = (0, 0, 180)  # Dark red for active alert
+                status_text = "VIOLENCE DETECTED"
+                text_color = (255, 255, 255)
+            elif unack_alerts > 0:
+                status_bg_color = (0, 120, 220)  # Orange for pending alerts
+                status_text = f"PENDING ALERTS: {unack_alerts}"
+                text_color = (255, 255, 255)
             else:
-                cv2.putText(frame, 'Status: OK', (25, status_y + 50), 
-                           cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (255, 255, 255), 2)
+                status_bg_color = (0, 120, 0)  # Dark green for normal
+                status_text = "VIOLENCE MONITOR: OK"
+                text_color = (255, 255, 255)
+            
+            # Background shadow with precise positioning
+            cv2.rectangle(frame, (15, status_y - shadow_offset), (25 + status_box_width + shadow_offset, status_y + status_box_height + shadow_offset), (0, 0, 0), -1)
+            # Main rectangle with crisp edges
+            cv2.rectangle(frame, (20, status_y), (20 + status_box_width, status_y + status_box_height), status_bg_color, -1)
+            # Anti-aliased border
+            cv2.rectangle(frame, (20, status_y), (20 + status_box_width, status_y + status_box_height), (255, 255, 255), border_thickness)
+            
+            # Status box line spacing
+            status_line_spacing = max(int(22 * density_factor), 18)
+            
+            cv2.putText(frame, 'SECURITY MONITOR', (20 + text_margin, status_y + status_line_spacing), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.7, text_color, text_thickness - 1, cv2.LINE_AA)
+            cv2.putText(frame, status_text, (20 + text_margin, status_y + status_line_spacing * 2), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.6, text_color, text_thickness - 1, cv2.LINE_AA)
+            cv2.putText(frame, 'AI-POWERED DETECTION', (20 + text_margin, status_y + status_line_spacing * 3), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.5, text_color, max(text_thickness - 2, 1), cv2.LINE_AA)
         
-        # Animal detection status box (bottom right)
-        status_box_width = int(frame_width * 0.2)
-        status_box_height = 60
-        status_y = frame_height - status_box_height - 20
-        status_x = frame_width - status_box_width - 20
+        # Animal detection status box (bottom right) with crisp rendering
+        status_box_width = max(int(frame_width * 0.22), 280)
+        status_box_height = max(int(90 * density_factor), 80)
+        status_y = frame_height - status_box_height - max(int(25 * density_factor), 20)
+        status_x = frame_width - status_box_width - 25
         
         # Get recent animal alerts
         recent_animal_alerts = self.animal_alert_manager.get_recent_alerts(hours=1)
         
-        # Status color based on recent alerts and current detection
-        animal_status_color = (0, 255, 0)  # Green default
-        if len(recent_animal_alerts) > 0:
-            animal_status_color = (0, 165, 255)  # Orange for recent alerts
+        # Status color and text based on recent alerts and current detection
         if self.current_animal_alert:
-            animal_status_color = (0, 255, 255)  # Yellow for active detection
-        
-        cv2.rectangle(frame, (status_x, status_y), (status_x + status_box_width, status_y + status_box_height), 
-                     animal_status_color, -1)
-        cv2.putText(frame, 'Animal Monitor', (status_x + 5, status_y + 25), 
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (0, 0, 0), 2)
-        
-        if self.current_animal_alert:
-            total_animals = self.current_animal_alert['total_animals']
-            cv2.putText(frame, f'{total_animals} Animal(s)!', (status_x + 5, status_y + 50), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (0, 0, 0), 2)
+            animal_bg_color = (0, 180, 180)  # Yellow-green for active detection
+            animal_text = f"ANIMALS DETECTED: {self.current_animal_alert['total_animals']}"
+            animal_text_color = (0, 0, 0)  # Black text on yellow background
         elif len(recent_animal_alerts) > 0:
-            cv2.putText(frame, f'Recent: {len(recent_animal_alerts)}', (status_x + 5, status_y + 50), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (0, 0, 0), 2)
+            animal_bg_color = (0, 120, 220)  # Orange for recent alerts
+            animal_text = f"RECENT ALERTS: {len(recent_animal_alerts)}"
+            animal_text_color = (255, 255, 255)
         else:
-            cv2.putText(frame, 'Status: Clear', (status_x + 5, status_y + 50), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.6, (0, 0, 0), 2)
+            animal_bg_color = (0, 120, 0)  # Dark green for clear
+            animal_text = "ANIMAL MONITOR: CLEAR"
+            animal_text_color = (255, 255, 255)
+        
+        # Background shadow with precise positioning
+        cv2.rectangle(frame, (status_x - shadow_offset, status_y - shadow_offset), (status_x + status_box_width + shadow_offset, status_y + status_box_height + shadow_offset), (0, 0, 0), -1)
+        # Main rectangle with crisp edges
+        cv2.rectangle(frame, (status_x, status_y), (status_x + status_box_width, status_y + status_box_height), animal_bg_color, -1)
+        # Anti-aliased border
+        cv2.rectangle(frame, (status_x, status_y), (status_x + status_box_width, status_y + status_box_height), (255, 255, 255), border_thickness)
+        
+        cv2.putText(frame, 'ANIMAL DETECTION', (status_x + text_margin, status_y + status_line_spacing), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.7, animal_text_color, text_thickness - 1, cv2.LINE_AA)
+        cv2.putText(frame, animal_text, (status_x + text_margin, status_y + status_line_spacing * 2), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.6, animal_text_color, text_thickness - 1, cv2.LINE_AA)
+        cv2.putText(frame, 'WILDLIFE SAFETY', (status_x + text_margin, status_y + status_line_spacing * 3), 
+                   cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.5, animal_text_color, max(text_thickness - 2, 1), cv2.LINE_AA)
+        
+        # Enhanced Traffic Control Status Box (center bottom) with pixel-perfect rendering
+        if self.enable_traffic_control:
+            traffic_box_width = max(int(frame_width * 0.4), 500)  # Minimum width for readability
+            traffic_box_height = max(int(150 * density_factor), 120)  # Scale with resolution
+            traffic_x = (frame_width - traffic_box_width) // 2
+            traffic_y = frame_height - traffic_box_height - max(int(25 * density_factor), 20)
+            
+            # Get current traffic control status
+            if hasattr(self, 'current_traffic_control'):
+                control_action = self.current_traffic_control.get('action', 'INITIALIZING')
+                control_reason = self.current_traffic_control.get('reason', 'System initializing')
+                density_ratio = self.current_traffic_control.get('density_ratio', 1.0)
+            else:
+                control_action = "INITIALIZING"
+                control_reason = "System starting up"
+                density_ratio = 1.0
+            
+            # Determine traffic control status and color based on actual control action
+            if control_action == "EMERGENCY_VIOLENCE":
+                traffic_bg_color = (0, 0, 180)  # Dark red for emergency
+                traffic_status = "EMERGENCY STOP - VIOLENCE"
+                traffic_text_color = (255, 255, 255)
+            elif control_action == "ANIMAL_CAUTION":
+                traffic_bg_color = (0, 180, 180)  # Yellow for animal caution
+                traffic_status = "ANIMAL CAUTION MODE"
+                traffic_text_color = (0, 0, 0)
+            elif control_action in ["LEFT_PRIORITY", "RIGHT_PRIORITY"]:
+                traffic_bg_color = (0, 120, 220)  # Orange for active control
+                traffic_status = f"ACTIVE: {control_action.replace('_', ' ')}"
+                traffic_text_color = (255, 255, 255)
+            elif control_action == "NORMAL_FLOW":
+                traffic_bg_color = (0, 120, 0)  # Dark green for normal
+                traffic_status = "NORMAL OPERATION"
+                traffic_text_color = (255, 255, 255)
+            elif not self.sumo_enabled:
+                traffic_bg_color = (100, 100, 100)  # Gray for disabled
+                traffic_status = "SUMO TRAFFIC CONTROL OFFLINE"
+                traffic_text_color = (220, 220, 220)
+            else:
+                traffic_bg_color = (100, 100, 100)  # Gray for unknown
+                traffic_status = f"STATUS: {control_action}"
+                traffic_text_color = (220, 220, 220)
+            
+            # Background shadow with precise positioning
+            cv2.rectangle(frame, (traffic_x - shadow_offset, traffic_y - shadow_offset), 
+                         (traffic_x + traffic_box_width + shadow_offset, traffic_y + traffic_box_height + shadow_offset), 
+                         (0, 0, 0), -1)
+            # Main rectangle with crisp edges
+            cv2.rectangle(frame, (traffic_x, traffic_y), 
+                         (traffic_x + traffic_box_width, traffic_y + traffic_box_height), 
+                         traffic_bg_color, -1)
+            # Anti-aliased white border
+            cv2.rectangle(frame, (traffic_x, traffic_y), 
+                         (traffic_x + traffic_box_width, traffic_y + traffic_box_height), 
+                         (255, 255, 255), border_thickness)
+            
+            # Enhanced text with precise spacing and anti-aliasing
+            traffic_line_spacing = max(int(28 * density_factor), 22)
+            traffic_text_margin = max(int(20 * density_factor), 15)
+            
+            cv2.putText(frame, 'TRAFFIC CONTROL SYSTEM', (traffic_x + traffic_text_margin, traffic_y + traffic_line_spacing), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.8, traffic_text_color, text_thickness, cv2.LINE_AA)
+            cv2.putText(frame, f'Status: {traffic_status}', (traffic_x + traffic_text_margin, traffic_y + traffic_line_spacing * 2), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.7, traffic_text_color, text_thickness - 1, cv2.LINE_AA)
+            
+            # Lane threshold indicators with better formatting
+            threshold_text = f'Thresholds: Left={LEFT_LANE_THRESHOLD}, Right={RIGHT_LANE_THRESHOLD}'
+            cv2.putText(frame, threshold_text, (traffic_x + traffic_text_margin, traffic_y + traffic_line_spacing * 3), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.6, traffic_text_color, text_thickness - 1, cv2.LINE_AA)
+            
+            # Current vehicle counts and density ratio
+            count_text = f'Current: L={vehicles_left}, R={vehicles_right}, Ratio={density_ratio:.1f}'
+            cv2.putText(frame, count_text, (traffic_x + traffic_text_margin, traffic_y + traffic_line_spacing * 4), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.6, traffic_text_color, text_thickness - 1, cv2.LINE_AA)
+            
+            # System status indicators at bottom
+            if violence_detected_start is not None:
+                cv2.putText(frame, 'VIOLENCE ALERT ACTIVE', (traffic_x + traffic_text_margin, traffic_y + traffic_line_spacing * 5), 
+                           cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.5, (255, 120, 120), max(text_thickness - 2, 1), cv2.LINE_AA)
+            elif animal_detected_start is not None:
+                cv2.putText(frame, 'ANIMAL SAFETY MODE ACTIVE', (traffic_x + traffic_text_margin, traffic_y + traffic_line_spacing * 5), 
+                           cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.5, (255, 255, 120), max(text_thickness - 2, 1), cv2.LINE_AA)
+            else:
+                cv2.putText(frame, 'AUTOMATED TRAFFIC MANAGEMENT', (traffic_x + traffic_text_margin, traffic_y + traffic_line_spacing * 5), 
+                           cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.5, traffic_text_color, max(text_thickness - 2, 1), cv2.LINE_AA)
     
     def get_statistics(self):
-        """Get comprehensive analysis statistics including violence and animal detection"""
+        """Get comprehensive analysis statistics including traffic control, violence and animal detection"""
         elapsed = time.time() - self.stats['analysis_start']
         fps = self.stats['total_frames'] / elapsed if elapsed > 0 else 0
         
@@ -637,28 +1183,54 @@ class TrafficAnalyzer:
             'vehicles_per_frame': self.stats['vehicles_detected'] / max(1, self.stats['total_frames'])
         }
         
+        # Add traffic control statistics
+        base_stats['traffic_control'] = {
+            'enabled': self.enable_traffic_control,
+            'sumo_connected': self.sumo_enabled,
+            'control_actions': self.stats.get('traffic_control_actions', 0),
+            'left_lane_actions': self.stats.get('left_lane_control_actions', 0),
+            'right_lane_actions': self.stats.get('right_lane_control_actions', 0),
+            'emergency_stops': self.stats.get('emergency_stops', 0),
+            'sms_alerts_enabled': TWILIO_AVAILABLE,
+            'left_lane_threshold': LEFT_LANE_THRESHOLD,
+            'right_lane_threshold': RIGHT_LANE_THRESHOLD,
+            'density_imbalance_ratio': DENSITY_IMBALANCE_RATIO,
+            'violence_alert_duration': VIOLENCE_ALERT_DURATION,
+            'animal_alert_duration': ANIMAL_ALERT_DURATION
+        }
+        
         # Add violence detection statistics if available
         if self.violence_detector:
             violence_stats = self.violence_detector.get_statistics()
             base_stats['violence_detection'] = violence_stats
             base_stats['unacknowledged_alerts'] = self.alert_manager.get_unacknowledged_count()
+            base_stats['violence_alerts_sent'] = self.stats.get('violence_alerts_sent', 0)
         
         # Add animal detection statistics
         recent_animal_alerts = self.animal_alert_manager.get_recent_alerts(hours=24)
         base_stats['animal_detection'] = {
             'recent_alerts_24h': len(recent_animal_alerts),
             'current_alert_active': self.current_animal_alert is not None,
-            'detection_interval': self.animal_detection_interval
+            'detection_interval': self.animal_detection_interval,
+            'traffic_adjustments': self.stats.get('animal_traffic_adjustments', 0)
         }
         
         return base_stats
     
     def cleanup(self):
-        """Cleanup resources including violence and animal detection"""
+        """Cleanup resources including traffic control, violence and animal detection"""
+        # Stop traffic control system
+        if self.enable_traffic_control and self.sumo_enabled:
+            stop_sumo()
+            print("[TRAFFIC CONTROL] SUMO simulation stopped")
+        
+        # Stop violence detection
         if self.violence_detector:
             self.violence_detector.stop_processing()
             print("[SHIELD] Violence detection stopped")
+            
         print("[ANIMAL] Animal detection cleaned up")
+        print("[SYSTEM] All resources cleaned up successfully")
     
     def _process_violence_results(self):
         """Process pending violence detection results"""
@@ -761,51 +1333,108 @@ class TrafficAnalyzer:
             self.current_animal_alert = None
     
     def _create_animal_alert_overlay(self, frame, animal_alert):
-        """Create animal detection alert overlay"""
+        """Create enhanced animal detection alert overlay with resolution-adaptive crisp rendering"""
         try:
             # Annotate frame with animal detections
             if 'detections' in animal_alert:
                 frame = self.animal_detector.annotate_frame(frame, animal_alert['detections'])
             
-            # Add alert banner
+            # Resolution-adaptive banner sizing
             frame_height, frame_width = frame.shape[:2]
-            banner_height = 80
+            pixel_density = (frame_width * frame_height) / (1920 * 1080)
+            density_factor = min(max(pixel_density, 0.3), 2.5)
             
-            # Create semi-transparent overlay
-            overlay = frame.copy()
-            cv2.rectangle(overlay, (0, 0), (frame_width, banner_height), (0, 255, 255), -1)
-            cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+            banner_height = max(int(110 * density_factor), 90)
             
-            # Alert text
-            alert_text = f"ANIMAL DETECTION ALERT - {animal_alert['total_animals']} ANIMAL(S) DETECTED"
-            font_scale = min(frame_width / 1920, frame_height / 1080) * 1.2
-            font_scale = max(0.8, min(font_scale, 2.0))
+            # Multi-tier font scaling
+            if frame_width >= 3840:  # 4K
+                base_font_scale = 2.0
+                thickness_multiplier = 4
+            elif frame_width >= 2560:  # 2K
+                base_font_scale = 1.6
+                thickness_multiplier = 3
+            elif frame_width >= 1920:  # 1080p
+                base_font_scale = 1.2
+                thickness_multiplier = 3
+            elif frame_width >= 1280:  # 720p
+                base_font_scale = 0.9
+                thickness_multiplier = 2
+            else:  # Lower resolutions
+                base_font_scale = 0.7
+                thickness_multiplier = 2
             
-            text_size = cv2.getTextSize(alert_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 3)[0]
+            font_scale = base_font_scale * density_factor
+            font_scale = max(0.6, min(font_scale, 2.5))
+            text_thickness = max(int(thickness_multiplier * density_factor), 2)
+            border_thickness = max(int(4 * density_factor), 3)
+            
+            # Create dark background for better contrast
+            cv2.rectangle(frame, (0, 0), (frame_width, banner_height), (0, 0, 0), -1)
+            
+            # Create colored alert banner with crisp edges
+            cv2.rectangle(frame, (5, 5), (frame_width - 5, banner_height - 5), (0, 220, 220), -1)
+            
+            # Anti-aliased white border for definition
+            cv2.rectangle(frame, (5, 5), (frame_width - 5, banner_height - 5), (255, 255, 255), border_thickness)
+            
+            # Enhanced alert text with precise positioning and anti-aliasing
+            alert_text = f"ANIMAL DETECTION ALERT - {animal_alert['total_animals']} ANIMALS DETECTED"
+            
+            text_size = cv2.getTextSize(alert_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, text_thickness)[0]
             text_x = (frame_width - text_size[0]) // 2
             
+            # Main alert text with shadow effect and anti-aliasing
+            shadow_offset = max(int(3 * density_factor), 2)
+            cv2.putText(frame, alert_text, (text_x + shadow_offset, 35 + shadow_offset), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale, (0, 0, 0), text_thickness, cv2.LINE_AA)
             cv2.putText(frame, alert_text, (text_x, 35), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), 3)
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale, (255, 255, 255), text_thickness, cv2.LINE_AA)
             
-            # Animal details
-            y_offset = 60
+            # Animal details with crisp rendering and better formatting
+            y_offset = max(int(70 * density_factor), 60)
+            x_offset = max(int(25 * density_factor), 20)
+            detail_spacing = max(int(50 * density_factor), 40)
+            
             for animal, count in animal_alert['animal_counts'].items():
                 if count > 0:
-                    detail_text = f"{animal.upper()}: {count}"
-                    cv2.putText(frame, detail_text, (20, y_offset), 
-                               cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, (0, 0, 0), 2)
-                    y_offset += 25
+                    detail_text = f"{animal.upper()}: {count} DETECTED"
+                    # Background for text readability
+                    text_size_detail = cv2.getTextSize(detail_text, cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.7, text_thickness - 1)[0]
+                    
+                    # Dark background for text
+                    cv2.rectangle(frame, (x_offset - 8, y_offset - 22), 
+                                 (x_offset + text_size_detail[0] + 8, y_offset + 8), (0, 0, 0), -1)
+                    
+                    # Text with anti-aliasing
+                    cv2.putText(frame, detail_text, (x_offset, y_offset), 
+                               cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.7, (255, 255, 255), text_thickness - 1, cv2.LINE_AA)
+                    x_offset += text_size_detail[0] + detail_spacing
             
-            # Severity indicator
+            # Enhanced severity indicator with crisp rendering
             severity = animal_alert.get('severity', 'LOW')
-            severity_color = (0, 255, 0) if severity == 'LOW' else (0, 165, 255) if severity == 'MEDIUM' else (0, 0, 255)
-            cv2.putText(frame, f"SEVERITY: {severity}", (frame_width - 200, 35), 
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.7, severity_color, 2)
+            severity_colors = {
+                'LOW': (0, 255, 0),      # Green
+                'MEDIUM': (0, 165, 255), # Orange  
+                'HIGH': (0, 0, 255)      # Red
+            }
+            severity_color = severity_colors.get(severity, (255, 255, 255))
+            
+            severity_text = f"PRIORITY LEVEL: {severity}"
+            severity_text_size = cv2.getTextSize(severity_text, cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.8, text_thickness)[0]
+            severity_x = frame_width - severity_text_size[0] - max(int(25 * density_factor), 20)
+            
+            # Background for severity indicator
+            cv2.rectangle(frame, (severity_x - 12, 8), 
+                         (severity_x + severity_text_size[0] + 12, 45), (0, 0, 0), -1)
+            
+            # Severity text with anti-aliasing
+            cv2.putText(frame, severity_text, (severity_x, 35), 
+                       cv2.FONT_HERSHEY_DUPLEX, font_scale * 0.8, severity_color, text_thickness, cv2.LINE_AA)
             
             return frame
             
         except Exception as e:
-            print(f"❌ Error creating animal alert overlay: {e}")
+            print(f"Error creating animal alert overlay: {e}")
             return frame
 
 def initialize_video_source(source):
@@ -1082,8 +1711,8 @@ def reset_video_source(cap, source):
         return cap
 
 def main():
-    """Main function"""
-    parser = argparse.ArgumentParser(description='Real-time Vehicle Detection and Traffic Analysis with Violence Detection')
+    """Main function with integrated traffic control system"""
+    parser = argparse.ArgumentParser(description='IoT-Based Traffic Regulation System with Real-time Detection and Control')
     parser.add_argument('--source', type=str, default=None, 
                        help='Video source (file, webcam, URL, YouTube)')
     parser.add_argument('--weights', type=str, default='models/best.pt', 
@@ -1098,6 +1727,8 @@ def main():
                        help='Maximum frames to process (for testing)')
     parser.add_argument('--output', type=str, default=None, 
                        help='Save processed video to file')
+    
+    # Violence detection arguments
     parser.add_argument('--violence-api-user', type=str, 
                        help='Sightengine API user ID for violence detection')
     parser.add_argument('--violence-api-secret', type=str, 
@@ -1108,6 +1739,22 @@ def main():
                        help='Violence detection threshold (0.0-1.0)')
     parser.add_argument('--violence-interval', type=int, default=30, 
                        help='Check every N frames for violence detection')
+    
+    # Traffic control arguments
+    parser.add_argument('--disable-traffic-control', action='store_true',
+                       help='Disable automated traffic control system')
+    parser.add_argument('--left-lane-threshold', type=int, default=8,
+                       help='Vehicle count threshold for left lane control activation')
+    parser.add_argument('--right-lane-threshold', type=int, default=8,
+                       help='Vehicle count threshold for right lane control activation')
+    parser.add_argument('--density-imbalance-ratio', type=float, default=2.0,
+                       help='Lane density ratio to trigger priority switching')
+    parser.add_argument('--violence-alert-duration', type=int, default=100,
+                       help='Seconds of continuous violence before SMS alert')
+    parser.add_argument('--animal-alert-duration', type=int, default=20,
+                       help='Seconds of animal presence before traffic adjustment')
+    parser.add_argument('--emergency-number', type=str, default="+919877035742",
+                       help='Phone number for emergency SMS alerts')
     
     args = parser.parse_args()
     
@@ -1126,9 +1773,43 @@ def main():
     # Reload API credentials after potential updates
     config.load_api_credentials()
     
-    print("🚗 Real-Time Vehicle Detection and Traffic Analysis")
+    # Configure traffic control from command line arguments
+    global LEFT_LANE_THRESHOLD, RIGHT_LANE_THRESHOLD, DENSITY_IMBALANCE_RATIO, VIOLENCE_ALERT_DURATION, ANIMAL_ALERT_DURATION, POLICE_NUMBER
+    if args.left_lane_threshold:
+        LEFT_LANE_THRESHOLD = args.left_lane_threshold
+    if args.right_lane_threshold:
+        RIGHT_LANE_THRESHOLD = args.right_lane_threshold
+    if args.density_imbalance_ratio:
+        DENSITY_IMBALANCE_RATIO = args.density_imbalance_ratio
+    if args.violence_alert_duration:
+        VIOLENCE_ALERT_DURATION = args.violence_alert_duration
+    if args.animal_alert_duration:
+        ANIMAL_ALERT_DURATION = args.animal_alert_duration
+    if args.emergency_number:
+        POLICE_NUMBER = args.emergency_number
+    
+    enable_traffic_control = not args.disable_traffic_control
+    
+    print("🚗 IoT-Based Traffic Regulation System")
+    print("🚦 [TRAFFIC CONTROL] With Real-time Automated Traffic Management")
     print("[SHIELD] With Advanced Violence Detection")
-    print("=" * 60)
+    print("[ANIMAL] With Animal Detection & Safety")
+    print("=" * 70)
+    
+    # Show traffic control status
+    if enable_traffic_control:
+        print("✅ Traffic Control: ENABLED")
+        print(f"   SUMO Available: {SUMO_AVAILABLE}")
+        print(f"   SUMO Config Path: {SUMO_CONFIG_PATH}")
+        print(f"   Left Lane Threshold: {LEFT_LANE_THRESHOLD} vehicles")
+        print(f"   Right Lane Threshold: {RIGHT_LANE_THRESHOLD} vehicles")
+        print(f"   Density Imbalance Ratio: {DENSITY_IMBALANCE_RATIO}")
+        print(f"   Violence Alert Duration: {VIOLENCE_ALERT_DURATION}s")
+        print(f"   Animal Alert Duration: {ANIMAL_ALERT_DURATION}s")
+        print(f"   Emergency Number: {POLICE_NUMBER}")
+        print(f"   SMS Alerts: {'ENABLED' if TWILIO_AVAILABLE else 'DISABLED'}")
+    else:
+        print("⚠️ Traffic Control: DISABLED")
     
     # Show violence detection status
     if config.VIOLENCE_DETECTION_ENABLED:
@@ -1142,7 +1823,7 @@ def main():
             print("   Reason: Missing API credentials")
         else:
             print("   Reason: Explicitly disabled")
-    print("=" * 60)
+    print("=" * 70)
     
     # Check model file
     if not os.path.exists(args.weights):
@@ -1226,8 +1907,13 @@ def main():
     print(f"   Lane threshold: {lane_config['lane_threshold']}")
     print(f"   Detection area: {lane_config['detection_area']}")
     
-    # Initialize traffic analyzer
-    analyzer = TrafficAnalyzer(model, lane_config, headless=args.headless)
+    # Initialize traffic analyzer with traffic control integration
+    analyzer = TrafficAnalyzer(
+        model, 
+        lane_config, 
+        headless=args.headless,
+        enable_traffic_control=enable_traffic_control
+    )
     
     # Setup video output if requested
     out_writer = None
@@ -1359,17 +2045,34 @@ def main():
         
         # Print final statistics
         stats = analyzer.get_statistics()
-        print(f"\n📊 Final Statistics:")
+        print(f"\n📊 Final IoT Traffic Regulation System Statistics:")
         print(f"   Total frames processed: {stats['total_frames']}")
         print(f"   Total vehicles detected: {stats['vehicles_detected']}")
         print(f"   Average FPS: {stats['fps']:.2f}")
         print(f"   Vehicles per frame: {stats['vehicles_per_frame']:.2f}")
         print(f"   Analysis duration: {stats['elapsed_time']:.2f} seconds")
         
+        # Print traffic control statistics
+        if 'traffic_control' in stats:
+            tc_stats = stats['traffic_control']
+            print(f"\n🚦 [TRAFFIC CONTROL] Lane-Specific System Statistics:")
+            print(f"   Traffic control enabled: {tc_stats['enabled']}")
+            print(f"   SUMO simulation connected: {tc_stats['sumo_connected']}")
+            print(f"   Total control actions: {tc_stats['control_actions']}")
+            print(f"   Left lane priority actions: {tc_stats['left_lane_actions']}")
+            print(f"   Right lane priority actions: {tc_stats['right_lane_actions']}")
+            print(f"   Emergency stops triggered: {tc_stats['emergency_stops']}")
+            print(f"   Left lane threshold: {tc_stats['left_lane_threshold']} vehicles")
+            print(f"   Right lane threshold: {tc_stats['right_lane_threshold']} vehicles")
+            print(f"   Density imbalance ratio: {tc_stats['density_imbalance_ratio']}")
+            print(f"   SMS alerts enabled: {tc_stats['sms_alerts_enabled']}")
+            print(f"   Violence alert duration: {tc_stats['violence_alert_duration']}s")
+            print(f"   Animal alert duration: {tc_stats['animal_alert_duration']}s")
+        
         # Print violence detection statistics if available
         if 'violence_detection' in stats and stats['violence_detection']['enabled']:
             vio_stats = stats['violence_detection']
-            print(f"\n[SHIELD] Violence Detection Statistics:")
+            print(f"\n🛡️ [SHIELD] Violence Detection Statistics:")
             print(f"   Total checks: {vio_stats['total_checks']}")
             print(f"   Violence detected: {vio_stats['violence_detected']}")
             print(f"   Detection rate: {vio_stats['detection_rate']:.2%}")
@@ -1377,8 +2080,21 @@ def main():
             print(f"   Avg processing time: {vio_stats['avg_processing_time']:.3f}s")
             if stats['unacknowledged_alerts'] > 0:
                 print(f"   ⚠️  Unacknowledged alerts: {stats['unacknowledged_alerts']}")
+            if stats.get('violence_alerts_sent', 0) > 0:
+                print(f"   📲 Emergency SMS alerts sent: {stats['violence_alerts_sent']}")
         
-        print(f"\n✅ Traffic analysis completed!")
+        # Print animal detection statistics
+        if 'animal_detection' in stats:
+            animal_stats = stats['animal_detection']
+            print(f"\n🐕 [ANIMAL] Detection Statistics:")
+            print(f"   Recent alerts (24h): {animal_stats['recent_alerts_24h']}")
+            print(f"   Current alert active: {animal_stats['current_alert_active']}")
+            print(f"   Detection interval: every {animal_stats['detection_interval']} frames")
+            if animal_stats.get('traffic_adjustments', 0) > 0:
+                print(f"   🚦 Traffic adjustments made: {animal_stats['traffic_adjustments']}")
+        
+        print(f"\n✅ IoT Traffic Regulation System completed successfully!")
+        print(f"   All systems: Vehicle Detection ✓ | Animal Detection ✓ | Violence Detection ✓ | Traffic Control ✓")
 
 if __name__ == "__main__":
     main()

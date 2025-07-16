@@ -1,0 +1,16 @@
+{
+  "frame_id": 1290,
+  "timestamp": "2025-07-16T16:10:44.205818",
+  "detections": {
+    "violence": 0.98,
+    "gore": 0.001,
+    "weapon": 0
+  },
+  "max_confidence": 0.98,
+  "processing_time": 2.4567301273345947,
+  "frame_shape": [
+    592,
+    1280,
+    3
+  ]
+}

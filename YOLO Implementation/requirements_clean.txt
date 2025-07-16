@@ -1,0 +1,39 @@
+# Real-Time Vehicle Detection and Traffic Flow Classification System
+# With Violence Detection Integration
+# Core Dependencies - Updated and Clean
+
+# Deep Learning and Computer Vision
+torch>=2.0.0
+torchvision>=0.15.0
+ultralytics>=8.0.0
+opencv-python>=4.8.0
+
+# YouTube Stream Support
+yt-dlp>=2023.1.6
+
+# Data Processing
+numpy>=1.21.0
+pillow>=8.3.0
+
+# Configuration and Utilities
+pyyaml>=6.0
+requests>=2.25.0
+
+# API Support
+aiohttp>=3.8.0
+
+# Violence Detection
+python-dotenv
+
+# Data Analysis (optional)
+pandas>=1.3.0
+matplotlib>=3.3.0
+
+# Audio/Video Processing
+moviepy>=1.0.3
+
+# System monitoring
+psutil>=5.8.0
+
+# Additional utilities
+tqdm>=4.62.0

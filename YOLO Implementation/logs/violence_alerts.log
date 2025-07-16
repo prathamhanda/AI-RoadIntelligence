@@ -1,1 +1,14 @@
 2025-07-14 15:59:18,587 - ALERT - Violence Alert #1: Severity HIGH, Max confidence 0.80
+2025-07-16 16:09:58,193 - ALERT - Violence Alert #1: Severity CRITICAL, Max confidence 0.99
+2025-07-16 16:09:59,557 - ALERT - Violence Alert #2: Severity CRITICAL, Max confidence 0.99
+2025-07-16 16:10:00,974 - ALERT - Violence Alert #3: Severity MEDIUM, Max confidence 0.79
+2025-07-16 16:10:02,357 - ALERT - Violence Alert #4: Severity CRITICAL, Max confidence 0.99
+2025-07-16 16:10:03,673 - ALERT - Violence Alert #5: Severity CRITICAL, Max confidence 0.96
+2025-07-16 16:10:05,507 - ALERT - Violence Alert #6: Severity CRITICAL, Max confidence 0.99
+2025-07-16 16:10:07,206 - ALERT - Violence Alert #7: Severity CRITICAL, Max confidence 0.92
+2025-07-16 16:10:11,656 - ALERT - Violence Alert #8: Severity CRITICAL, Max confidence 0.99
+2025-07-16 16:10:13,072 - ALERT - Violence Alert #9: Severity CRITICAL, Max confidence 0.98
+2025-07-16 16:10:44,256 - ALERT - Violence Alert #10: Severity CRITICAL, Max confidence 0.98
+2025-07-16 16:10:46,189 - ALERT - Violence Alert #11: Severity CRITICAL, Max confidence 0.99
+2025-07-16 16:12:41,454 - ALERT - Violence Alert #1: Severity HIGH, Max confidence 0.83
+2025-07-16 16:12:42,857 - ALERT - Violence Alert #2: Severity CRITICAL, Max confidence 0.92
