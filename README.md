@@ -1,10 +1,9 @@
-# 🚦  AI-Driven Traffic Regulation System
+# 🚦 AI-Driven Traffic Regulation System
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)](https://opencv.org)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange.svg)](https://ultralytics.com)
 [![SUMO](https://img.shields.io/badge/SUMO-1.23+-red.svg)](https://sumo.dlr.de)
-
 
 ## 🌟 Overview
 
@@ -17,7 +16,6 @@ A comprehensive AI-powered traffic management system that integrates real-time c
 | **🚗 Vehicle Detection** | YOLOv8, OpenCV | Real-time traffic analysis, density monitoring, lane detection |
 | **🦣 Animal Detection** | YOLOv8, Computer Vision | Large animal detection on roadways, safety alerts |
 | **⚡ Violence Detection** | Sightengine API, AI Analysis | Real-time violence, gore, and weapon detection |
-| **🚨 Accident Detection** | YOLOv8, Deep Learning | Automatic accident identification and emergency response |
 | **🛣️ Traffic Simulation** | SUMO TraCI, Emergency Systems | Traffic light control, emergency routing, congestion management |
 | **📱 Integration** | SMS Alerts, Real-time Monitoring | Instant notifications, evidence logging, system automation |
 
@@ -30,7 +28,6 @@ A comprehensive AI-powered traffic management system that integrates real-time c
 | **Vehicle Detection** | 94.2% | 91.8% | 96.5% | 94.1% | 45 FPS |
 | **Animal Detection** | 89.7% | 87.3% | 92.1% | 89.6% | 42 FPS |
 | **Violence Detection** | 92.1% | 88.9% | 95.3% | 92.0% | Real-time API |
-| **Accident Detection** | 91.4% | 89.2% | 93.7% | 91.4% | 38 FPS |
 
 ### 🚀 System Capabilities
 
@@ -46,29 +43,29 @@ A comprehensive AI-powered traffic management system that integrates real-time c
 
 ```
 _Traffic_Regulation/
-├── 📁 YOLO Implementation/           # Main traffic analysis system
-│   ├── 🤖 traffic_analysis.py       # Core traffic detection engine
-│   ├── 🛡️ violence_detector.py      # Violence detection module
-│   ├── 🐾 animal_detector.py        # Animal detection system
-│   ├── ⚙️ config.py                # Configuration management
-│   ├── 🧪 system_tools.py          # Diagnostics and testing
-│   └── 📊 models/                   # Trained AI models
-├── 📁 Animal_detection_grouped/      # Specialized animal detection
-│   ├── 🦣 detection_code.py         # Animal detection algorithm
-│   ├── 📹 cow2.mp4                  # Test video samples
-│   └── 📈 animal_log.csv            # Detection analytics
-├── 📁 simulation_files/              # SUMO traffic simulation
-│   ├── 🚦 updated_traffic_analysis.py # Emergency traffic control
-│   ├── 🗺️ map.net.xml              # Road network definition
-│   ├── ⚙️ map.sumocfg              # SUMO configuration
-│   └── 🚗 routes.rou.xml           # Vehicle routing patterns
-├── 📁 evidence/                      # Incident documentation
-│   ├── 📸 animals/                   # Animal detection evidence
-│   ├── ⚠️ violence/                 # Violence incident records
-│   └── 🔫 weapons/                  # Weapon detection logs
-└── 📁 logs/                         # System operation logs
-    ├── 📝 violence_alerts.log       # Security incident logs
-    └── 📊 violence_detection.log    # Detection analytics
+├── 📁 YOLO Implementation/        # Main traffic analysis system
+│   ├── 🤖 traffic_analysis.py    # Core traffic detection engine
+│   ├── 🛡️ violence_detector.py   # Violence detection module
+│   ├── 🐾 animal_detector.py     # Animal detection system
+│   ├── ⚙️ config.py              # Configuration management
+│   ├── 🧪 system_tools.py        # Diagnostics and testing
+│   └── 📊 models/                # Trained AI models
+├── 📁 Animal_detection_grouped/   # Specialized animal detection
+│   ├── 🦣 detection_code.py      # Animal detection algorithm
+│   ├── 📹 cow2.mp4               # Test video samples
+│   └── 📈 animal_log.csv         # Detection analytics
+├── 📁 simulation_files/           # SUMO traffic simulation
+│   ├── 🚦 updated_traffic_analysis.py  # Emergency traffic control
+│   ├── 🗺️ map.net.xml            # Road network definition
+│   ├── ⚙️ map.sumocfg            # SUMO configuration
+│   └── 🚗 routes.rou.xml         # Vehicle routing patterns
+├── 📁 evidence/                   # Incident documentation
+│   ├── 📸 animals/               # Animal detection evidence
+│   ├── ⚠️ violence/              # Violence incident records
+│   └── 🔫 weapons/               # Weapon detection logs
+└── 📁 logs/                      # System operation logs
+    ├── 📝 violence_alerts.log    # Security incident logs
+    └── 📊 violence_detection.log # Detection analytics
 ```
 
 ## 🚀 Quick Start
@@ -110,8 +107,8 @@ python direct_setup.py  # Interactive setup wizard
 #### 🚗 Traffic Analysis (Primary System)
 ```bash
 cd "YOLO Implementation"
-python traffic_analysis.py --source 0  # Webcam
-python traffic_analysis.py --source video.mp4  # Video file
+python traffic_analysis.py --source 0              # Webcam
+python traffic_analysis.py --source video.mp4      # Video file
 python traffic_analysis.py --source rtsp://ip:port/stream  # IP camera
 ```
 
@@ -130,6 +127,7 @@ python updated_traffic_analysis.py  # SUMO integration
 ## 📋 Detailed Module Documentation
 
 ### 🚗 Vehicle Detection & Traffic Analysis
+
 **Location:** `YOLO Implementation/`
 
 Advanced traffic monitoring system with multi-source input support:
@@ -147,6 +145,7 @@ Advanced traffic monitoring system with multi-source input support:
 - Evidence preservation system
 
 ### 🦣 Animal Detection System
+
 **Location:** `Animal_detection_grouped/`
 
 Specialized detection system for large animals on roadways:
@@ -162,6 +161,7 @@ Specialized detection system for large animals on roadways:
 - False positive rate: < 8%
 
 ### 🛡️ Violence & Weapon Detection
+
 **Location:** `YOLO Implementation/violence_detector.py`
 
 AI-powered security monitoring using Sightengine API:
@@ -173,6 +173,7 @@ AI-powered security monitoring using Sightengine API:
 - **Alert system:** Immediate notifications with severity levels
 
 ### 🚦 Traffic Simulation & Emergency Management
+
 **Location:** `simulation_files/`
 
 SUMO-based traffic simulation with emergency response:
@@ -191,6 +192,7 @@ SUMO-based traffic simulation with emergency response:
 ## 🔧 Configuration & Customization
 
 ### System Configuration
+
 ```bash
 # View current configuration
 python config.py --show
@@ -203,14 +205,18 @@ python config.py --confidence 0.75 --violence-threshold 0.8
 ```
 
 ### Lane Calibration
+
 Interactive calibration for custom road layouts:
+
 1. Start system with your video source
 2. Left-click to add polygon points
 3. Right-click to complete lane boundary
 4. Press 'C' to save configuration
 
 ### API Configuration
+
 Set up violence detection API:
+
 ```bash
 python direct_setup.py  # Interactive setup
 # Enter your Sightengine API credentials when prompted
@@ -219,18 +225,21 @@ python direct_setup.py  # Interactive setup
 ## 📊 System Monitoring & Analytics
 
 ### Real-Time Dashboard
+
 - Live vehicle counts and traffic density
 - Detection confidence scores
 - System performance metrics
 - Alert status and incident logs
 
 ### Evidence Management
+
 - Automatic incident documentation
 - Timestamped evidence preservation
 - Structured logging for analysis
 - Export capabilities for reporting
 
 ### Performance Monitoring
+
 ```bash
 # System diagnostics
 python system_tools.py --check
@@ -245,12 +254,14 @@ python system_tools.py --test-sources
 ## 🚨 Emergency Response Integration
 
 ### Automated Alert System
+
 - **SMS notifications** for critical incidents
 - **Email alerts** with evidence attachments
 - **Real-time dashboard** updates
 - **API webhooks** for external system integration
 
 ### Emergency Protocols
+
 1. **Incident Detection** → Immediate alert generation
 2. **Evidence Capture** → Automatic documentation
 3. **Authority Notification** → Multi-channel alerts
@@ -259,13 +270,14 @@ python system_tools.py --test-sources
 ## 🔬 Advanced Features
 
 ### Multi-Model Fusion
+
 - Ensemble detection combining multiple AI models
 - Cross-validation for improved accuracy
 - Intelligent confidence scoring
 - Adaptive threshold adjustment
 
-
 ### Machine Learning Pipeline
+
 - Continuous model improvement
 - Transfer learning for custom scenarios
 - Automated retraining capabilities
@@ -287,7 +299,6 @@ python system_tools.py --test-sources
 - **Sightengine** for violence detection API
 - **OpenCV** community for computer vision tools
 - **Contributors** who have helped improve this project
-
 
 ---
 
