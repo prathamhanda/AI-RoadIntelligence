@@ -1,4 +1,4 @@
-# 🚦 IoT-Based Traffic Regulation System
+# 🚦  AI-Driven Traffic Regulation System
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)](https://opencv.org)
@@ -19,7 +19,7 @@ A comprehensive AI-powered traffic management system that integrates real-time c
 | **⚡ Violence Detection** | Sightengine API, AI Analysis | Real-time violence, gore, and weapon detection |
 | **🚨 Accident Detection** | YOLOv8, Deep Learning | Automatic accident identification and emergency response |
 | **🛣️ Traffic Simulation** | SUMO TraCI, Emergency Systems | Traffic light control, emergency routing, congestion management |
-| **📱 IoT Integration** | SMS Alerts, Real-time Monitoring | Instant notifications, evidence logging, system automation |
+| **📱 Integration** | SMS Alerts, Real-time Monitoring | Instant notifications, evidence logging, system automation |
 
 ## 📊 System Performance Metrics
 
@@ -45,7 +45,7 @@ A comprehensive AI-powered traffic management system that integrates real-time c
 ## 🗂️ Project Architecture
 
 ```
-IoT-Based_Traffic_Regulation/
+_Traffic_Regulation/
 ├── 📁 YOLO Implementation/           # Main traffic analysis system
 │   ├── 🤖 traffic_analysis.py       # Core traffic detection engine
 │   ├── 🛡️ violence_detector.py      # Violence detection module
@@ -84,8 +84,8 @@ IoT-Based_Traffic_Regulation/
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/prathamhanda/IoT-Based_Traffic_Regulation.git
-cd IoT-Based_Traffic_Regulation
+git clone https://github.com/prathamhanda/_Traffic_Regulation.git
+cd _Traffic_Regulation
 ```
 
 2. **Set up Python environment:**
@@ -264,11 +264,6 @@ python system_tools.py --test-sources
 - Intelligent confidence scoring
 - Adaptive threshold adjustment
 
-### IoT Integration
-- MQTT protocol support for sensor networks
-- Edge computing compatibility
-- Cloud synchronization capabilities
-- Remote monitoring and control
 
 ### Machine Learning Pipeline
 - Continuous model improvement
@@ -300,6 +295,6 @@ python system_tools.py --test-sources
 
 **⭐ Star this repository if it helped you!**
 
-[Report Bug](https://github.com/prathamhanda/IoT-Based_Traffic_Regulation/issues) • [Request Feature](https://github.com/prathamhanda/IoT-Based_Traffic_Regulation/issues) • [Documentation](https://github.com/prathamhanda/IoT-Based_Traffic_Regulation/blob/master/README.md)
+[Report Bug](https://github.com/prathamhanda/_Traffic_Regulation/issues) • [Request Feature](https://github.com/prathamhanda/_Traffic_Regulation/issues) • [Documentation](https://github.com/prathamhanda/_Traffic_Regulation/blob/master/README.md)
 
 </div>
