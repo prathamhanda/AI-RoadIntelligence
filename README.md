@@ -9,6 +9,20 @@
 
 A comprehensive AI-powered traffic management system that integrates real-time computer vision, traffic simulation, and emergency response capabilities. This intelligent system combines multiple detection models to create a unified traffic regulation platform for enhanced road safety and efficient traffic flow management.
 
+<div align="center">
+
+## 🎥 Project Demonstration
+
+Here is a complete demonstration of the system in action, showcasing vehicle detection, animal detection, and traffic regulation features.
+
+<a href="https://www.youtube.com/watch?v=q5H6BAHjTY4" target="_blank">
+ <img src="https://img.youtube.com/vi/q5H6BAHjTY4/maxresdefault.jpg" alt="Watch the Project Demo" width="800" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border: 2px solid #30363d;" />
+</a>
+<br>
+<i>🚀 Click the image above to watch the full demonstration video on YouTube</i>
+
+</div>
+
 ## 🎯 Key Features
 
 | Feature Category | Technologies | Capabilities |
